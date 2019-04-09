@@ -4,7 +4,8 @@
 ```bash
 roslaunch htc_vive_teleop_stuff all_teleop.launch
 roscd htc_vive_teleop_stuff/scripts
-python rad_teleop_pr2.py 
+python rad_teleop_pr2.py # --help
+python filter_jnt_traj_node.py
 ```
 or
 ```bash

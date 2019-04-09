@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 import rospy
 # TF stuff
 from geometry_msgs.msg import PoseStamped
@@ -41,23 +42,28 @@ class PR2Gripper(object):
         goal = Pr2GripperCommandGoal()
         goal.command.position = position
         goal.command.max_effort = max_effort
-        return self.gripper_client.send_goal_and_wait(goal, execute_timeout=rospy.Duration(2.0), 
+        return self.gripper_client.send_goal_and_wait(goal, execute_timeout=rospy.Duration(2.0),
                                                             preempt_timeout=rospy.Duration(0.1))
-        
+
 
 class PR2Teleop(object):
-    def __init__(self):
+    def __init__(self, should_filter=True):
         self.ik_right = IK("torso_lift_link",
                            "r_wrist_roll_link")
                            #"r_gripper_tool_frame")
         self.ik_left = IK("torso_lift_link",
                           "l_wrist_roll_link")
 
-        self.left_command = rospy.Publisher('/l_arm_controller/command',
+        if should_filter:
+            should_filter_str='_filter'
+        else:
+            should_filter_str=''
+
+        self.left_command = rospy.Publisher('/l_arm_controller/command'+should_filter_str,
                                             JointTrajectory,
                                             queue_size=1)
 
-        self.right_command = rospy.Publisher('/r_arm_controller/command',
+        self.right_command = rospy.Publisher('/r_arm_controller/command'+should_filter_str,
                                              JointTrajectory,
                                              queue_size=1)
 
@@ -71,10 +77,10 @@ class PR2Teleop(object):
                                            self.right_cb, queue_size=1)
         # rostopic echo /vive_left
         self.last_left_buttons = None
-        self.last_left_buttons_sub = rospy.Subscriber('/vive_left', Joy, 
+        self.last_left_buttons_sub = rospy.Subscriber('/vive_left', Joy,
                                         self.left_button_cb, queue_size=1)
         self.last_right_buttons = None
-        self.last_right_buttons_sub = rospy.Subscriber('/vive_right', Joy, 
+        self.last_right_buttons_sub = rospy.Subscriber('/vive_right', Joy,
                                         self.right_button_cb, queue_size=1)
 
         self.left_gripper = PR2Gripper('left')
@@ -83,8 +89,8 @@ class PR2Teleop(object):
         self.left_vibrate_pub = rospy.Publisher('/vive_left_vibration', Float64, queue_size=1)
         self.right_vibrate_pub = rospy.Publisher('/vive_right_vibration', Float64, queue_size=1)
 
-        self.msg_time_from_start_left = 0.8 # was 0.4
-        self.msg_time_from_start_right = 0.8 # was 0.4
+        # self.msg_time_from_start_left = 0.8 # was 0.4
+        # self.msg_time_from_start_right = 0.8 # was 0.4
 
         self.move_eps = 0.1 # The arms are not going to move if the button is pressed less than this
         self.move_time_min = 0.4
@@ -141,6 +147,7 @@ class PR2Teleop(object):
                 self.left_gripper.open()
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
+        ## TODO: Add start stop demo recording  <here or only right?>
 
     def right_button_cb(self, msg):
         self.last_right_buttons = msg
@@ -152,6 +159,7 @@ class PR2Teleop(object):
                 self.right_gripper.open()
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
+        ## TODO: Add start stop demo recording 
 
     def calc_move_time(self, ratio):
         return self.move_time_min + \
@@ -170,7 +178,6 @@ class PR2Teleop(object):
         jt.points.append(jtp)
         print("Goal: ")
         print(jt)
-	
         self.right_command.publish(jt)
 
     def send_left_arm_goal(self, positions):
@@ -273,7 +280,7 @@ class PR2Teleop(object):
         else:
             print "NO SOLUTION FOUND for LEFT :("
 
-    def run_with_ik(self, hand='both'):
+    def run_with_ik(self, arms='both', rate=20):
         self.qinit_right = [0., 0., 0., 0., 0., 0., 0.] 
         self.qinit_left = [0., 0., 0., 0., 0., 0., 0.]
         # x = y = z = 0.0
@@ -282,17 +289,25 @@ class PR2Teleop(object):
         self.bx = self.by = self.bz = 0.01
         self.brx = self.bry = self.brz = 0.5
 
-        r = rospy.Rate(10)
+        r = rospy.Rate(rate)
         while not rospy.is_shutdown():
-            if hand == 'right' or hand == 'both':
+            if arms == 'right' or arms == 'both':
                 self.right_hand_run_ik_step()
-            if hand == 'left' or hand == 'both':
+            if arms == 'left' or arms == 'both':
                 self.left_hand_run_ik_step()
 
             r.sleep()
 
 
 if __name__ == '__main__':
-    rospy.init_node('teleop_pr2')
-    nv = PR2Teleop()
-    nv.run_with_ik(hand='both')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--arms', choices=['left', 'right', 'both'], default='both', help='Which arms to use for teleop')
+    parser.add_argument('--rate', default=20, type=int, help='what is the rate for IK')
+    parser.add_argument('--filter', dest='filter', action='store_true', default=True, help='should filter collision states?')
+    args = parser.parse_args()
+
+    print('Starting arguments: ', args)
+
+    rospy.init_node('rad_teleop_pr2')
+    nv = PR2Teleop(should_filter=args.filter)
+    nv.run_with_ik(arms=args.arms, rate=args.rate)

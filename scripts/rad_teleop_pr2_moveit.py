@@ -44,9 +44,9 @@ class PR2Gripper(object):
         goal = Pr2GripperCommandGoal()
         goal.command.position = position
         goal.command.max_effort = max_effort
-        return self.gripper_client.send_goal_and_wait(goal, execute_timeout=rospy.Duration(2.0), 
+        return self.gripper_client.send_goal_and_wait(goal, execute_timeout=rospy.Duration(2.0),
                                                             preempt_timeout=rospy.Duration(0.1))
-        
+
 
 class PR2Teleop(object):
     def __init__(self):
@@ -60,7 +60,6 @@ class PR2Teleop(object):
 	self.group_right = moveit_commander.MoveGroupCommander("right_arm")
 
 	rospy.sleep(2)
-       
 
         self.last_left_pose = None
         self.left_pose = rospy.Subscriber('/left_controller_as_posestamped_offset',
@@ -191,7 +190,7 @@ class PR2Teleop(object):
 	plan_success = self.group_right.go(wait=True)
 	print('Sending right pose sucess: ',plan_success)
 
-            
+
 
     def left_hand_control(self):
         ps = self.last_left_pose
@@ -224,7 +223,6 @@ class PR2Teleop(object):
 	self.group_left.set_pose_target(self.last_left_pose.pose)
 	plan_success = self.group_left.go(wait=True)
 	print('Sending left pose sucess: ',plan_success)
-	
 
 
 
@@ -237,7 +235,7 @@ class PR2Teleop(object):
         self.bx = self.by = self.bz = 0.01
         self.brx = self.bry = self.brz = 0.5
 
-        r = rospy.Rate(1)
+        r = rospy.Rate(10)
         while not rospy.is_shutdown():
             if hand == 'right' or hand == 'both':
                 self.right_hand_control()
