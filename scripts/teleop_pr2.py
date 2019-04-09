@@ -13,8 +13,8 @@ from trac_ik_python.trac_ik import IK
 class PR2Teleop(object):
     def __init__(self):
         self.ik_right = IK("torso_lift_link",
-                           #"r_wrist_roll_link")
-                           "r_gripper_tool_frame")
+                           "r_wrist_roll_link")
+                           #"r_gripper_tool_frame")
         self.ik_left = IK("torso_lift_link",
                           "l_wrist_roll_link")
 
@@ -93,7 +93,7 @@ class PR2Teleop(object):
             rz = self.last_right_pose.pose.orientation.z
             rw = self.last_right_pose.pose.orientation.w
 
-            # rospy.loginfo("Got pose: " + str(ps))
+            rospy.loginfo("Got pose: " + str(ps))
             sol = None
             retries = 0
             while not sol and retries < 10:
