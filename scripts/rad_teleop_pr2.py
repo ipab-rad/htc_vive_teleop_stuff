@@ -304,6 +304,7 @@ if __name__ == '__main__':
     parser.add_argument('--arms', choices=['left', 'right', 'both'], default='both', help='Which arms to use for teleop')
     parser.add_argument('--rate', default=20, type=int, help='what is the rate for IK')
     parser.add_argument('--filter', dest='filter', action='store_true', default=True, help='should filter collision states?')
+    parser.add_argument('--no-filter', dest='filter', action='store_false')
     args = parser.parse_args()
 
     print('Starting arguments: ', args)
