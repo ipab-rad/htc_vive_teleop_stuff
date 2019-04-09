@@ -4,7 +4,6 @@ import sys
 import rospy
 from moveit_msgs.srv import GetStateValidityRequest
 from moveit_msgs.srv import GetStateValidity
-# from moveit_msgs.msg import RobotState
 from sensor_msgs.msg import JointState
 
 right_joint_names = ["r_shoulder_pan_joint", "r_shoulder_lift_joint", "r_upper_arm_roll_joint",
@@ -42,7 +41,7 @@ def check_state(names, positions, service=None, verbose=False):
 
     try:
         if service is None:
-            isStateValidService = get_check_state_service(persistent=True)
+            isStateValidService = get_check_state_service(persistent=False)
         else:
             isStateValidService = service
         resp1 = isStateValidService(state_validity)
@@ -55,15 +54,31 @@ def check_state(names, positions, service=None, verbose=False):
 
 if __name__ == "__main__":
     rospy.init_node('service_state_checker')
+    import time
+
     state = [1.5]*7
-    print(state, check_state(right_joint_names, state, verbose=True))
+    start = time.time()
+    print(state, check_state(right_joint_names, state, verbose=False))
+    print('Time took:', (time.time() - start)*1000, ' ms')
     state = [0.5]*7
-    print(state, check_state(right_joint_names, state, verbose=True))
+    start = time.time()
+    print(state, check_state(right_joint_names, state, verbose=False))
+    print('Time took:', (time.time() - start)*1000, ' ms')
 
     service = get_check_state_service(persistent=True)
     state = [1.5]*7
+    start = time.time()
     print(state, check_state(right_joint_names, state, service=service, verbose=False))
+    print('Time took:', (time.time() - start)*1000, ' ms')
     state = [0.5]*7
+    start = time.time()
     print(state, check_state(right_joint_names, state, service=service, verbose=False))
+    print('Time took:', (time.time() - start)*1000, ' ms')
+    state = [-0.5]*7
+    start = time.time()
+    print(state, check_state(right_joint_names, state, service=service, verbose=False))
+    print('Time took:', (time.time() - start)*1000, ' ms')
+
+
 
     print('Done.')
