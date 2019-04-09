@@ -1,5 +1,18 @@
 # HTC Vive teleop stuff
 
+## To run RAD Demo
+```bash
+roslaunch htc_vive_teleop_stuff all_teleop.launch
+roscd htc_vive_teleop_stuff/scripts
+python rad_teleop_pr2.py 
+```
+or
+```bash
+python rad_teleop_pr2_moveit.py 
+```
+
+
+
 ## Install
 
 First, follow the [INSTALL](INSTALL.md) instructions to get Ubuntu 16.04 and SteamVR (beta) on your machine.
