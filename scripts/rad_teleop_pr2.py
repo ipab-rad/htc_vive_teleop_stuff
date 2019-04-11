@@ -1,24 +1,21 @@
 #!/usr/bin/env python
 
 import argparse
+import threading, subprocess, time
+from math import radians
+
 import rospy
+import actionlib
 # TF stuff
 from geometry_msgs.msg import PoseStamped
 from tf.transformations import euler_from_quaternion
-from math import radians
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Float64
 
 from trac_ik_python.trac_ik import IK
-
-import threading
-
-# from trajectory_msgs.msg import *
-# from actionlib_msgs.msg import *
 from pr2_controllers_msgs.msg import Pr2GripperCommandAction, Pr2GripperCommandGoal
-# from sensor_msgs.msg import JointState
-import actionlib
+
 
 class PR2Gripper(object):
     """docstring for PR2Gripper"""
@@ -30,7 +27,7 @@ class PR2Gripper(object):
         self.gripper_client = actionlib.SimpleActionClient(self.gripper_action_name, Pr2GripperCommandAction)
 
         if not self.gripper_client.wait_for_server(rospy.Duration(10)):
-            rospy.logerr("ArmMover.py: right_gripper_client action server did not come up within timelimit")
+            rospy.logerr("PR2Gripper: right_gripper_client action server did not come up within timelimit")
 
     def open(self):
         return self.right_grip(0.08)
@@ -47,7 +44,9 @@ class PR2Gripper(object):
 
 
 class PR2Teleop(object):
-    def __init__(self, should_filter=True):
+    def __init__(self, should_filter=True, 
+                 button_start_script=None, 
+                 button_stop_script=None):
         self.ik_right = IK("torso_lift_link",
                            "r_wrist_roll_link")
                            #"r_gripper_tool_frame")
@@ -96,6 +95,12 @@ class PR2Teleop(object):
         self.move_time_min = 0.4
         self.move_time_max = 8.0
 
+        self.episode_state = 'stopped'
+        self.episode_state_change_time = time.time()
+        self.episode_state_change_hist_time = 1
+        self.button_start_script = button_start_script
+        self.button_stop_script = button_stop_script
+
         self.vibrate_right(3)
         # rospy.sleep(2.0)
         # self.left_gripper.open()
@@ -139,7 +144,7 @@ class PR2Teleop(object):
 
     def left_button_cb(self, msg):
         self.last_left_buttons = msg
-        # print(msg)
+        # print('Button press msg: ', msg)
         if msg.buttons[2] == 1:
             if (msg.axes[1] > 0):
                 self.left_gripper.close()
@@ -147,11 +152,28 @@ class PR2Teleop(object):
                 self.left_gripper.open()
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
-        ## TODO: Add start stop demo recording  <here or only right?>
+        if msg.buttons[4] == 1:
+            if time.time() - self.episode_state_change_time > self.episode_state_change_hist_time:
+                # update last time command was executed!
+                self.episode_state_change_time = time.time()
+
+                if self.episode_state == 'stopped' and self.button_start_script is not None:
+                    print('right', self.button_start_script)
+                    print('right', self.button_stop_script)
+                    cmd = subprocess.call(self.button_start_script)
+                    self.episode_state = 'started'
+                    self.vibrate_left(1, strength=0.6)
+                elif self.episode_state == 'started' and self.button_stop_script is not None:
+                    cmd = subprocess.call(self.button_stop_script)
+                    self.episode_state = 'stopped'
+                    self.vibrate_left(1, strength=0.1)
+                else:
+                    rospy.logerr('Error in grip button state!!!')
+
 
     def right_button_cb(self, msg):
         self.last_right_buttons = msg
-        # print(msg)
+        # print('Button press msg: ', msg)
         if msg.buttons[2] == 1:
             if (msg.axes[1] > 0):
                 self.right_gripper.close()
@@ -159,7 +181,23 @@ class PR2Teleop(object):
                 self.right_gripper.open()
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
-        ## TODO: Add start stop demo recording 
+        if msg.buttons[4] == 1:
+            if time.time() - self.episode_state_change_time > self.episode_state_change_hist_time:
+                # update last time command was executed!
+                self.episode_state_change_time = time.time()
+
+                if self.episode_state == 'stopped' and self.button_start_script is not None:
+                    print('right', self.button_start_script)
+                    print('right', self.button_stop_script)
+                    cmd = subprocess.call(self.button_start_script)
+                    self.episode_state = 'started'
+                    self.vibrate_left(1, strength=0.6)
+                elif self.episode_state == 'started' and self.button_stop_script is not None:
+                    cmd = subprocess.call(self.button_stop_script)
+                    self.episode_state = 'stopped'
+                    self.vibrate_left(1, strength=0.1)
+                else:
+                    rospy.logerr('Error in grip button state!!!')
 
     def calc_move_time(self, ratio):
         return self.move_time_min + \
@@ -174,7 +212,7 @@ class PR2Teleop(object):
         jtp = JointTrajectoryPoint()
         jtp.positions = list(positions)
         jtp.velocities = [0.0] * len(positions)
-        jtp.time_from_start = rospy.Time(self.calc_move_time(self.last_right_buttons.axes[0]))
+        jtp.time_from_start = rospy.Trospy.logerrime(self.calc_move_time(self.last_right_buttons.axes[0]))
         jt.points.append(jtp)
         print("Goal: ")
         print(jt)
@@ -305,10 +343,14 @@ if __name__ == '__main__':
     parser.add_argument('--rate', default=20, type=int, help='what is the rate for IK')
     parser.add_argument('--filter', dest='filter', action='store_true', default=True, help='should filter collision states?')
     parser.add_argument('--no-filter', dest='filter', action='store_false')
+    parser.add_argument('--button-start-script', '-a', type=str, help='The start script executed when grip button is pressed.')
+    parser.add_argument('--button-stop-script',  '-z', type=str, help='The stop script executed when grip button is pressed.')
     args = parser.parse_args()
 
     print('Starting arguments: ', args)
 
     rospy.init_node('rad_teleop_pr2')
-    nv = PR2Teleop(should_filter=args.filter)
+    nv = PR2Teleop(should_filter=args.filter, 
+                   button_start_script=args.button_start_script, 
+                   button_stop_script=args.button_stop_script)
     nv.run_with_ik(arms=args.arms, rate=args.rate)
