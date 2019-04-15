@@ -95,11 +95,7 @@ class PR2Teleop(object):
         self.move_time_min = 0.4
         self.move_time_max = 8.0
 
-        self.episode_state = 'stopped'
-        self.episode_state_change_time = time.time()
-        self.episode_state_change_hist_time = 1
-        self.button_start_script = button_start_script
-        self.button_stop_script = button_stop_script
+        self.record_pub = rospy.Publisher("/toggle_recording", Empty, queue_size=1)
 
         self.vibrate_right(3)
         # rospy.sleep(2.0)
@@ -153,22 +149,8 @@ class PR2Teleop(object):
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
         if msg.buttons[4] == 1:
-            if time.time() - self.episode_state_change_time > self.episode_state_change_hist_time:
-                # update last time command was executed!
-                self.episode_state_change_time = time.time()
-
-                if self.episode_state == 'stopped' and self.button_start_script is not None:
-                    print('right', self.button_start_script)
-                    print('right', self.button_stop_script)
-                    cmd = subprocess.call(self.button_start_script)
-                    self.episode_state = 'started'
-                    self.vibrate_left(1, strength=0.6)
-                elif self.episode_state == 'started' and self.button_stop_script is not None:
-                    cmd = subprocess.call(self.button_stop_script)
-                    self.episode_state = 'stopped'
-                    self.vibrate_left(1, strength=0.1)
-                else:
-                    rospy.logerr('Error in grip button state!!!')
+            self.record_pub.publish()
+            self.vibrate_left(1, strength=0.6)
 
 
     def right_button_cb(self, msg):
@@ -182,22 +164,8 @@ class PR2Teleop(object):
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
         if msg.buttons[4] == 1:
-            if time.time() - self.episode_state_change_time > self.episode_state_change_hist_time:
-                # update last time command was executed!
-                self.episode_state_change_time = time.time()
-
-                if self.episode_state == 'stopped' and self.button_start_script is not None:
-                    print('right', self.button_start_script)
-                    print('right', self.button_stop_script)
-                    cmd = subprocess.call(self.button_start_script)
-                    self.episode_state = 'started'
-                    self.vibrate_left(1, strength=0.6)
-                elif self.episode_state == 'started' and self.button_stop_script is not None:
-                    cmd = subprocess.call(self.button_stop_script)
-                    self.episode_state = 'stopped'
-                    self.vibrate_left(1, strength=0.1)
-                else:
-                    rospy.logerr('Error in grip button state!!!')
+            self.record_pub.publish()
+            self.vibrate_left(1, strength=0.6)
 
     def calc_move_time(self, ratio):
         return self.move_time_min + \

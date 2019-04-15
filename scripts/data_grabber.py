@@ -23,6 +23,7 @@ class DataGrabber:
         self.listener = tf.TransformListener()
         self.image_sub = rospy.Subscriber("/kinect2/sd/image_color_rect",Image,self.im_callback,queue_size=1)
         self.joint_sub = rospy.Subscriber("joint_states",JointState,self.j_callback,queue_size=1)
+        self.recording_sub = rospy.Subscriber("/toggle_recording", Empty, self.toggle_recording)
         #self.depth_sub = rospy.Subscriber("/kinect2/sd/image_depth_rect",Image,self.callback_depth)
         self.vel = []
         self.pos = []
