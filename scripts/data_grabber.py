@@ -4,7 +4,7 @@ roslib.load_manifest('data_grabber')
 import sensor_msgs
 import sys
 import rospy
-from std_msgs.msg import String
+from std_msgs.msg import String, Empty
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import JointState
 from cv_bridge import CvBridge, CvBridgeError
@@ -23,15 +23,19 @@ class DataGrabber:
         self.listener = tf.TransformListener()
         self.image_sub = rospy.Subscriber("/kinect2/sd/image_color_rect",Image,self.im_callback,queue_size=1)
         self.joint_sub = rospy.Subscriber("joint_states",JointState,self.j_callback,queue_size=1)
+        self.recording_sub = rospy.Subscriber("toggle_recording", Empty, self.toggle_recording)
         #self.depth_sub = rospy.Subscriber("/kinect2/sd/image_depth_rect",Image,self.callback_depth)
+
         self.vel = []
         self.pos = []
         self.names = []
+
         self.recording = False
         self.recordingFolder = None
 
     
     def toggle_recording(self):
+        print("Toggling recording")
         if self.recording:
             self.recording = False
             self.recordingFolder = None
@@ -72,10 +76,9 @@ class DataGrabber:
 
         except CvBridgeError as e:
             print ("No transform available")
-    
 
 
-def main(args):
+if __name__ == '__main__':
     print("Starting Node")
 
     ic = DataGrabber()
@@ -86,7 +89,3 @@ def main(args):
         rospy.spin()
     except KeyboardInterrupt:
         print("Shutting down")
-
-if __name__ == '__main__':
-    main(sys.argv)
-
