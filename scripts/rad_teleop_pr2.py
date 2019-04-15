@@ -11,7 +11,7 @@ from geometry_msgs.msg import PoseStamped
 from tf.transformations import euler_from_quaternion
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from sensor_msgs.msg import Joy
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, Empty
 
 from trac_ik_python.trac_ik import IK
 from pr2_controllers_msgs.msg import Pr2GripperCommandAction, Pr2GripperCommandGoal
@@ -139,7 +139,6 @@ class PR2Teleop(object):
 
 
     def left_button_cb(self, msg):
-        self.last_left_buttons = msg
         # print('Button press msg: ', msg)
         if msg.buttons[2] == 1:
             if (msg.axes[1] > 0):
@@ -148,13 +147,14 @@ class PR2Teleop(object):
                 self.left_gripper.open()
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
-        if msg.buttons[4] == 1:
+        if msg.buttons[4] == 1 and self.last_left_buttons[4].buttons == 0:
             self.record_pub.publish()
             self.vibrate_left(1, strength=0.6)
 
+        self.last_left_buttons = msg
+
 
     def right_button_cb(self, msg):
-        self.last_right_buttons = msg
         # print('Button press msg: ', msg)
         if msg.buttons[2] == 1:
             if (msg.axes[1] > 0):
@@ -163,9 +163,11 @@ class PR2Teleop(object):
                 self.right_gripper.open()
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
-        if msg.buttons[4] == 1:
+        if msg.buttons[4] == 1 and self.last_right_buttons.buttons[4] == 0:
             self.record_pub.publish()
             self.vibrate_left(1, strength=0.6)
+
+        self.last_right_buttons = msg
 
     def calc_move_time(self, ratio):
         return self.move_time_min + \
@@ -211,7 +213,7 @@ class PR2Teleop(object):
             return
 
         if self.last_right_buttons.axes[0] < self.move_eps:
-            print('Right Button pressed too easy.')
+            # print('Right Button pressed too easy.')
             return
 
 
@@ -255,7 +257,7 @@ class PR2Teleop(object):
             return
 
         if self.last_left_buttons.axes[0] < self.move_eps:
-            print('Left button pressed too easy.')
+            # print('Left button pressed too easy.')
             return
 
         x = self.last_left_pose.pose.position.x
