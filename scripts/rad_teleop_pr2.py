@@ -212,7 +212,7 @@ class PR2Teleop(object):
         jtp = JointTrajectoryPoint()
         jtp.positions = list(positions)
         jtp.velocities = [0.0] * len(positions)
-        jtp.time_from_start = rospy.Trospy.logerrime(self.calc_move_time(self.last_right_buttons.axes[0]))
+        jtp.time_from_start = rospy.Time(self.calc_move_time(self.last_right_buttons.axes[0]))
         jt.points.append(jtp)
         print("Goal: ")
         print(jt)
