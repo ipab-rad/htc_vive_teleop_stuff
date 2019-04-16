@@ -12,6 +12,7 @@ import numpy as np
 from os import makedirs
 from os.path import join
 from datetime import datetime
+import message_filters
 
 class DataGrabber:
 
@@ -19,18 +20,18 @@ class DataGrabber:
     def __init__(self):
 
         self.bridge = CvBridge()
-        self.listener = tf.TransformListener()
-        self.image_sub = rospy.Subscriber("/kinect2/sd/image_color_rect",Image,self.im_callback,queue_size=1)
-        self.joint_sub = rospy.Subscriber("joint_states",JointState,self.j_callback,queue_size=1)
-        self.recording_sub = rospy.Subscriber("/toggle_recording", Empty, self.toggle_recording)
-        #self.depth_sub = rospy.Subscriber("/kinect2/sd/image_depth_rect",Image,self.callback_depth)
-
-        self.vel = []
-        self.pos = []
-        self.names = []
 
         self.recording = False
         self.recordingFolder = None
+        rospy.Subscriber("/toggle_recording", Empty, self.toggle_recording)
+
+        im_sub = message_filters.Subscriber("/kinect2/sd/image_color_rect",Image)
+        joints_sub = message_filters.Subscriber("joint_states",JointState)
+        # message_filters.Subscriber("/kinect2/sd/image_depth_rect",Image)
+
+        synched_sub = message_filters.ApproximateTimeSynchronizer([im_sub, joints_sub], queue_size=20, slop=0.1)
+        synched_sub.registerCallback(self.demo_callback)
+
 
     
     def toggle_recording(self, data):
@@ -47,35 +48,27 @@ class DataGrabber:
             makedirs(self.recordingFolder)
 
 
-    def im_callback(self,data):
+    def demo_callback(self, im, joint_state):
         if not self.recording:
             return
 
         try:
             print("Recording demo data")
-            cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
 
-            t_stamp = data.header.stamp.to_sec()
+            cv_image = self.bridge.imgmsg_to_cv2(im, "bgr8")
+
+            t_stamp = im.header.stamp.to_sec()
             im_path = join(self.recordingFolder, "kinect_colour_{}.jpg".format(t_stamp))
             vel_path = join(self.recordingFolder, "joint_vel_{}.txt".format(t_stamp))
             pose_path = join(self.recordingFolder, "joint_pos_{}.txt".format(t_stamp))
             names_path = join(self.recordingFolder, "joint_names{}.txt".format(t_stamp))
 
             cv2.imwrite(im_path, cv_image)
-            np.savetxt(vel_path, self.vel)
-            np.savetxt(pose_path, self.pos)
-            np.savetxt(names_path, self.names, fmt='%s')
+            np.savetxt(vel_path, joint_state.vel)
+            np.savetxt(pose_path, joint_state.position)
+            np.savetxt(names_path, joint_state.name, fmt='%s')
 
             print ("Saving image at time {}".format(t_stamp))
-        except CvBridgeError as e:
-            print ("No transform available")
-             
-    def j_callback(self,data):
-        try:
-            self.vel = data.velocity
-            self.pos = data.position
-            self.names = data.name
-
         except CvBridgeError as e:
             print ("No transform available")
 
