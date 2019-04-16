@@ -11,7 +11,7 @@ from geometry_msgs.msg import PoseStamped
 from tf.transformations import euler_from_quaternion
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from sensor_msgs.msg import Joy
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, Empty
 
 from trac_ik_python.trac_ik import IK
 from pr2_controllers_msgs.msg import Pr2GripperCommandAction, Pr2GripperCommandGoal
@@ -95,11 +95,7 @@ class PR2Teleop(object):
         self.move_time_min = 0.4
         self.move_time_max = 8.0
 
-        self.episode_state = 'stopped'
-        self.episode_state_change_time = time.time()
-        self.episode_state_change_hist_time = 1
-        self.button_start_script = button_start_script
-        self.button_stop_script = button_stop_script
+        self.record_pub = rospy.Publisher("/toggle_recording", Empty, queue_size=1)
 
         self.vibrate_right(3)
         # rospy.sleep(2.0)
@@ -143,7 +139,6 @@ class PR2Teleop(object):
 
 
     def left_button_cb(self, msg):
-        self.last_left_buttons = msg
         # print('Button press msg: ', msg)
         if msg.buttons[2] == 1:
             if (msg.axes[1] > 0):
@@ -152,27 +147,14 @@ class PR2Teleop(object):
                 self.left_gripper.open()
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
-        if msg.buttons[4] == 1:
-            if time.time() - self.episode_state_change_time > self.episode_state_change_hist_time:
-                # update last time command was executed!
-                self.episode_state_change_time = time.time()
+        if msg.buttons[4] == 1 and self.last_left_buttons[4].buttons == 0:
+            self.record_pub.publish()
+            self.vibrate_left(1, strength=0.6)
 
-                if self.episode_state == 'stopped' and self.button_start_script is not None:
-                    print('right', self.button_start_script)
-                    print('right', self.button_stop_script)
-                    cmd = subprocess.call(self.button_start_script)
-                    self.episode_state = 'started'
-                    self.vibrate_left(1, strength=0.6)
-                elif self.episode_state == 'started' and self.button_stop_script is not None:
-                    cmd = subprocess.call(self.button_stop_script)
-                    self.episode_state = 'stopped'
-                    self.vibrate_left(1, strength=0.1)
-                else:
-                    rospy.logerr('Error in grip button state!!!')
+        self.last_left_buttons = msg
 
 
     def right_button_cb(self, msg):
-        self.last_right_buttons = msg
         # print('Button press msg: ', msg)
         if msg.buttons[2] == 1:
             if (msg.axes[1] > 0):
@@ -181,23 +163,11 @@ class PR2Teleop(object):
                 self.right_gripper.open()
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
-        if msg.buttons[4] == 1:
-            if time.time() - self.episode_state_change_time > self.episode_state_change_hist_time:
-                # update last time command was executed!
-                self.episode_state_change_time = time.time()
+        if msg.buttons[4] == 1 and self.last_right_buttons.buttons[4] == 0:
+            self.record_pub.publish()
+            self.vibrate_left(1, strength=0.6)
 
-                if self.episode_state == 'stopped' and self.button_start_script is not None:
-                    print('right', self.button_start_script)
-                    print('right', self.button_stop_script)
-                    cmd = subprocess.call(self.button_start_script)
-                    self.episode_state = 'started'
-                    self.vibrate_left(1, strength=0.6)
-                elif self.episode_state == 'started' and self.button_stop_script is not None:
-                    cmd = subprocess.call(self.button_stop_script)
-                    self.episode_state = 'stopped'
-                    self.vibrate_left(1, strength=0.1)
-                else:
-                    rospy.logerr('Error in grip button state!!!')
+        self.last_right_buttons = msg
 
     def calc_move_time(self, ratio):
         return self.move_time_min + \
@@ -212,7 +182,7 @@ class PR2Teleop(object):
         jtp = JointTrajectoryPoint()
         jtp.positions = list(positions)
         jtp.velocities = [0.0] * len(positions)
-        jtp.time_from_start = rospy.Trospy.logerrime(self.calc_move_time(self.last_right_buttons.axes[0]))
+        jtp.time_from_start = rospy.Time(self.calc_move_time(self.last_right_buttons.axes[0]))
         jt.points.append(jtp)
         print("Goal: ")
         print(jt)
@@ -243,7 +213,7 @@ class PR2Teleop(object):
             return
 
         if self.last_right_buttons.axes[0] < self.move_eps:
-            print('Right Button pressed too easy.')
+            # print('Right Button pressed too easy.')
             return
 
 
@@ -287,7 +257,7 @@ class PR2Teleop(object):
             return
 
         if self.last_left_buttons.axes[0] < self.move_eps:
-            print('Left button pressed too easy.')
+            # print('Left button pressed too easy.')
             return
 
         x = self.last_left_pose.pose.position.x
