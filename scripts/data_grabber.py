@@ -29,7 +29,7 @@ class DataGrabber:
         joints_sub = message_filters.Subscriber("joint_states",JointState)
         # message_filters.Subscriber("/kinect2/sd/image_depth_rect",Image)
 
-        synched_sub = message_filters.ApproximateTimeSynchronizer([im_sub, joints_sub], queue_size=20, slop=0.1)
+        synched_sub = message_filters.ApproximateTimeSynchronizer([im_sub, joints_sub], queue_size=25, slop=0.1)
         synched_sub.registerCallback(self.demo_callback)
 
 
