@@ -13,11 +13,12 @@ from os import makedirs
 from os.path import join
 from datetime import datetime
 import message_filters
+import argparse
 
 class DataGrabber:
 
 
-    def __init__(self):
+    def __init__(self, image_topic):
 
         self.bridge = CvBridge()
 
@@ -25,7 +26,7 @@ class DataGrabber:
         self.recordingFolder = None
         rospy.Subscriber("/toggle_recording", Empty, self.toggle_recording)
 
-        im_sub = message_filters.Subscriber("/kinect2/sd/image_color_rect",Image)
+        im_sub = message_filters.Subscriber(image_topic, Image)
         joints_sub = message_filters.Subscriber("joint_states",JointState)
         # message_filters.Subscriber("/kinect2/sd/image_depth_rect",Image)
 
@@ -74,10 +75,13 @@ class DataGrabber:
 
  
 if __name__ == '__main__':
-    print("Starting Recording Node")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("image_topic", help="The ROS image topic path which the grabber will record")
+    parser.parse_args()
 
+    print("Starting Recording Node")
     rospy.init_node('image_grabber', anonymous=True)
-    ic = DataGrabber()
+    ic = DataGrabber(parser.image_topic)
 
     try:
         rospy.spin()
