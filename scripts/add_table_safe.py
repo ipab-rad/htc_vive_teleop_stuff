@@ -40,17 +40,17 @@ def wait_for_state_update(box_name="table", box_is_known=False, box_is_attached=
 def add_collision_table(box_name="table", timeout=4):
    rospy.sleep(0.1)
 
-   table_height = 0.025
+   table_height = 1.05
 
    p = geometry_msgs.msg.PoseStamped()
    p.header.frame_id = robot.get_planning_frame()
    p.pose.position.x = 0.8 # fwd
    p.pose.position.y = 0 # left/right
-   p.pose.position.z = 0.73 - table_height/2.
+   p.pose.position.z = 0.76 - table_height/2.
    # p.pose.orientation.w = 0.924
    # p.pose.orientation.z = 0.383
    p.pose.orientation.w = 1.
-   scene.add_box(box_name, p, (0.6, 1.2, table_height))
+   scene.add_box(box_name, p, (0.8, 1.2, table_height))
    
    return wait_for_state_update(box_name=box_name, box_is_known=True)
 
@@ -76,5 +76,5 @@ if __name__ == "__main__":
    success = add_collision_table(box_name="table")
    # success = remove_collision_table(box_name="table")
    
-   print("Add table success:", success)
+   print(success)
    

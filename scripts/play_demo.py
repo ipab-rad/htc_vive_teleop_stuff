@@ -21,6 +21,6 @@ ims = []
 ims = (cv2.imread(f_name) for f_name in f_names)
 im_arts = [[plt.imshow(im[:, :, [2, 1, 0]], animated=True)] for im in ims]
 
-ani = animation.ArtistAnimation(fig, im_arts, interval=50, blit=True, repeat_delay=3000)
+ani = animation.ArtistAnimation(fig, im_arts, interval=100, blit=True, repeat_delay=3000)
 
 plt.show()

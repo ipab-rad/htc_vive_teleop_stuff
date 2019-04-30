@@ -13,6 +13,7 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Float64, Empty
 
+import trac_ik_python
 from trac_ik_python.trac_ik import IK
 from pr2_controllers_msgs.msg import Pr2GripperCommandAction, Pr2GripperCommandGoal
 
@@ -48,10 +49,10 @@ class PR2Teleop(object):
                  button_start_script=None, 
                  button_stop_script=None):
         self.ik_right = IK("torso_lift_link",
-                           "r_wrist_roll_link")
+                           "r_wrist_roll_link",solve_type='Manipulation1')
                            #"r_gripper_tool_frame")
         self.ik_left = IK("torso_lift_link",
-                          "l_wrist_roll_link")
+                          "l_wrist_roll_link",solve_type='Manipulation1')
 
         if should_filter:
             should_filter_str='_filter'
@@ -92,7 +93,7 @@ class PR2Teleop(object):
         # self.msg_time_from_start_right = 0.8 # was 0.4
 
         self.move_eps = 0.1 # The arms are not going to move if the button is pressed less than this
-        self.move_time_min = 0.4
+        self.move_time_min = 1.0
         self.move_time_max = 8.0
 
         self.record_pub = rospy.Publisher("/toggle_recording", Empty, queue_size=1)
@@ -147,7 +148,7 @@ class PR2Teleop(object):
                 self.left_gripper.open()
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
-        if msg.buttons[4] == 1 and self.last_left_buttons[4].buttons == 0:
+        if msg.buttons[4] == 1 and self.last_left_buttons.buttons[4] == 0:
             self.record_pub.publish()
             self.vibrate_left(1, strength=0.6)
 
@@ -219,7 +220,7 @@ class PR2Teleop(object):
 
         x = self.last_right_pose.pose.position.x
         y = self.last_right_pose.pose.position.y
-        z = self.last_right_pose.pose.position.z
+        z = self.last_right_pose.pose.position.z - 0.5
 
         rx = self.last_right_pose.pose.orientation.x
         ry = self.last_right_pose.pose.orientation.y
@@ -262,7 +263,7 @@ class PR2Teleop(object):
 
         x = self.last_left_pose.pose.position.x
         y = self.last_left_pose.pose.position.y
-        z = self.last_left_pose.pose.position.z
+        z = self.last_left_pose.pose.position.z - 0.5
 
         rx = self.last_left_pose.pose.orientation.x
         ry = self.last_left_pose.pose.orientation.y
@@ -308,6 +309,7 @@ class PR2Teleop(object):
 
 
 if __name__ == '__main__':
+    print("Location of trak_ik: ", trac_ik_python.__file__)
     parser = argparse.ArgumentParser()
     parser.add_argument('--arms', choices=['left', 'right', 'both'], default='both', help='Which arms to use for teleop')
     parser.add_argument('--rate', default=20, type=int, help='what is the rate for IK')
@@ -315,7 +317,7 @@ if __name__ == '__main__':
     parser.add_argument('--no-filter', dest='filter', action='store_false')
     parser.add_argument('--button-start-script', '-a', type=str, help='The start script executed when grip button is pressed.')
     parser.add_argument('--button-stop-script',  '-z', type=str, help='The stop script executed when grip button is pressed.')
-    args = parser.parse_args()
+    args, unknown_args = parser.parse_known_args()
 
     print('Starting arguments: ', args)
 
