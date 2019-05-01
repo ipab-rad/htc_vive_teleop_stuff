@@ -64,7 +64,7 @@ class DataGrabber:
             im_path = join(self.recordingFolder, "kinect_colour_{}.jpg".format(t_stamp))
             vel_path = join(self.recordingFolder, "joint_vel_{}.txt".format(t_stamp))
             pose_path = join(self.recordingFolder, "joint_pos_{}.txt".format(t_stamp))
-            names_path = join(self.recordingFolder, "joint_names{}.txt".format(t_stamp))
+            names_path = join(self.recordingFolder, "joint_names_{}.txt".format(t_stamp))
 
             cv2.imwrite(im_path, cv_image)
             np.savetxt(vel_path, joint_state.velocity)
