@@ -97,11 +97,14 @@ class PR2Teleop(object):
         self.move_time_max = 8.0
 
         self.record_pub = rospy.Publisher("/toggle_recording", Empty, queue_size=1)
+        # Add for button debouncing
+        self.record_state_change_time = time.time()
+        self.record_state_change_hist_time = 1
 
         self.vibrate_right(3)
         # rospy.sleep(2.0)
         # self.left_gripper.open()
-        # self.left_gripper.close()
+        # self.left_gripperecord_state_change_timer.close()
 
 
     def vibrate_right(self, length=1, strength=0.5):
@@ -149,8 +152,12 @@ class PR2Teleop(object):
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
         if msg.buttons[4] == 1 and self.last_left_buttons.buttons[4] == 0:
-            self.record_pub.publish()
-            self.vibrate_left(1, strength=0.6)
+            if time.time() - self.record_state_change_time > self.record_state_change_hist_time:
+                # update last time command was executed!
+                self.record_state_change_time = time.time()
+
+                self.record_pub.publish()
+                self.vibrate_left(1, strength=0.6)
 
         self.last_left_buttons = msg
 
@@ -165,8 +172,12 @@ class PR2Teleop(object):
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
         if msg.buttons[4] == 1 and self.last_right_buttons.buttons[4] == 0:
-            self.record_pub.publish()
-            self.vibrate_left(1, strength=0.6)
+            if time.time() - self.record_state_change_time > self.record_state_change_hist_time:
+                # update last time command was executed!
+                self.record_state_change_time = time.time()
+
+                self.record_pub.publish()
+                self.vibrate_left(1, strength=0.6)
 
         self.last_right_buttons = msg
 
@@ -312,7 +323,7 @@ if __name__ == '__main__':
     print("Location of trak_ik: ", trac_ik_python.__file__)
     parser = argparse.ArgumentParser()
     parser.add_argument('--arms', choices=['left', 'right', 'both'], default='both', help='Which arms to use for teleop')
-    parser.add_argument('--rate', default=20, type=int, help='what is the rate for IK')
+    parser.add_argument('--rate', default=15, type=int, help='what is the rate for IK')
     parser.add_argument('--filter', dest='filter', action='store_true', default=True, help='should filter collision states?')
     parser.add_argument('--no-filter', dest='filter', action='store_false')
     parser.add_argument('--button-start-script', '-a', type=str, help='The start script executed when grip button is pressed.')

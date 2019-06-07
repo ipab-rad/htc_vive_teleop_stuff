@@ -20,12 +20,13 @@ import argparse
 class DataGrabber:
 
 
-    def __init__(self, image_topic):
+    def __init__(self, image_topic, root_path):
 
         self.bridge = CvBridge()
 
         self.recording = False
         self.recordingFolder = None
+        self.root_path = root_path
         rospy.Subscriber("/toggle_recording", Empty, self.toggle_recording)
 
         im_sub = message_filters.Subscriber(image_topic, Image)
@@ -47,9 +48,10 @@ class DataGrabber:
         else:
             print("Turning on recording")
             self.recording = True
-            self.recordingFolder = "Demos/Demo_{}".format(datetime.now()) 
+            self.recordingFolder = os.path.join(self.root_path, 
+                                "Demos/Demo_{}".format(datetime.now()))
             makedirs(self.recordingFolder)
-            print("Current Directory:", os.getcwd())
+            # print("Current Directory:", os.getcwd())
             print("Folder made at {}".format(self.recordingFolder))
 
 
@@ -79,10 +81,11 @@ class DataGrabber:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--imtopic", default="/kinect2/sd/image_color_rect", help="The ROS image topic path which the grabber will record")
+    parser.add_argument("--root_path", default="/home/michael/vive_ws/src/htc_vive_teleop_stuff/scripts", help="The root folder where to save the demo files.")
     args, unknown_args = parser.parse_known_args()
 
     rospy.init_node('image_grabber', anonymous=True)
-    ic = DataGrabber(args.imtopic)
+    ic = DataGrabber(args.imtopic, args.root_path)
     print("Recording Node Online")
 
     try:
