@@ -27,6 +27,7 @@ class DataGrabber:
         self.recording = False
         self.recordingFolder = None
         self.root_path = root_path
+        self.image_topic = image_topic
         rospy.Subscriber("/toggle_recording", Empty, self.toggle_recording)
 
         im_sub = message_filters.Subscriber(image_topic, Image)
@@ -63,14 +64,17 @@ class DataGrabber:
             cv_image = self.bridge.imgmsg_to_cv2(im, "bgr8")
 
             t_stamp = im.header.stamp.to_sec()
-            im_path = join(self.recordingFolder, "kinect_colour_{}.jpg".format(t_stamp))
+            image_name = self.image_topic.strip('/').replace('/', '_') + '_{}.jpg'
+            im_path = join(self.recordingFolder, image_name.format(t_stamp))
             vel_path = join(self.recordingFolder, "joint_vel_{}.txt".format(t_stamp))
             pose_path = join(self.recordingFolder, "joint_pos_{}.txt".format(t_stamp))
             names_path = join(self.recordingFolder, "joint_names_{}.txt".format(t_stamp))
+            effort_path = join(self.recordingFolder, "joint_effort_{}.txt".format(t_stamp))
 
             cv2.imwrite(im_path, cv_image)
             np.savetxt(vel_path, joint_state.velocity)
             np.savetxt(pose_path, joint_state.position)
+            np.savetxt(pose_path, joint_state.effort)
             np.savetxt(names_path, joint_state.name, fmt='%s')
 
             print ("Saving image at time {}".format(t_stamp))
