@@ -17,6 +17,7 @@ class PublishFrameAsPoseStamped(object):
     def __init__(self, frame_to_posestamped,
                  reference_frame,
                  rate,
+                 x_offset,
                  verbose=False):
         """
         Class to publish a frame as a PoseStamped.
@@ -28,6 +29,8 @@ class PublishFrameAsPoseStamped(object):
         :param verbose bool: print to screen the transformations.
         """
         self.tf_l = tf.TransformListener()
+        self.br = tf.TransformBroadcaster()
+
         topic_name = frame_to_posestamped.replace('/', '')
         self.pose_pub = rospy.Publisher(topic_name + '_as_posestamped',
                                         PoseStamped, queue_size=1)
@@ -36,6 +39,7 @@ class PublishFrameAsPoseStamped(object):
         self.frame_to_posestamped = frame_to_posestamped
         self.reference_frame = reference_frame
         self.rate = rospy.Rate(rate)
+        self.x_offset = x_offset
         self.verbose = verbose
 
     def transform_pose(self, pose, from_frame, to_frame):
@@ -86,7 +90,7 @@ class PublishFrameAsPoseStamped(object):
         ps_offset = Pose()
         ps_offset.orientation.w = 1.0 # Q must be ok
         # rosrun tf tf_echo /l_gripper_tool_frame /l_wrist_roll_link - >> Translation: [-0.180, 0.000, 0.000]
-        ps_offset.position.x = -0.18
+        ps_offset.position.x = x_offset
 
         while not rospy.is_shutdown():
             # We transform a pose with reference frame
@@ -97,13 +101,27 @@ class PublishFrameAsPoseStamped(object):
                                           self.frame_to_posestamped,
                                           self.reference_frame)
             self.pose_pub.publish(tfed_ps)
-            tfed_ps_offset = self.transform_pose(ps_offset,
-                                          self.frame_to_posestamped,
-                                          self.reference_frame)
-            self.pose_pub_offset.publish(tfed_ps_offset)
+            if self.x_offset != 0:
+                tfed_ps_offset = self.transform_pose(ps_offset,
+                                              self.frame_to_posestamped,
+                                              self.reference_frame)
+                self.pose_pub_offset.publish(tfed_ps_offset)
+
+                #Publish offset_tf
+                self.br.sendTransform((tfed_ps_offset.pose.position.x,
+                                   tfed_ps_offset.pose.position.y,
+                                   tfed_ps_offset.pose.position.z),
+                     (tfed_ps_offset.pose.orientation.x,
+                      tfed_ps_offset.pose.orientation.y,
+                      tfed_ps_offset.pose.orientation.z,
+                      tfed_ps_offset.pose.orientation.w),
+                     rospy.Time.now(),
+                     self.frame_to_posestamped + '_offset',
+                     self.reference_frame)
+                if self.verbose:
+                    print('Offset pose: ', tfed_ps_offset)
             if self.verbose:
                 print('Std pose: ', tfed_ps)
-                print('Offset pose: ', tfed_ps)
             self.rate.sleep()
 
 
@@ -112,16 +130,26 @@ if __name__ == '__main__':
     argv = rospy.myargv(sys.argv)
     if len(argv) < 3:
         print("Usage:")
-        print(argv[0] + " frame_to_posestamped reference_frame [rate]")
+        print(argv[0] + " frame_to_posestamped reference_frame [rate] [x-offset]")
+        print('Note: x-offset can be used to specify offsets in x direction like grippers.')
         exit(0)
     frame_to_posestamped = argv[1]
     reference_frame = argv[2]
+
     if len(argv) == 4:
         rate = int(argv[3])
     else:
         rate = 10
+
+    if len(argv) == 5:
+        x_offset = float(argv[4])
+        print('oddsadasdas', x_offset)
+    else:
+        x_offset = 0
+    
     pfaps = PublishFrameAsPoseStamped(frame_to_posestamped,
                                       reference_frame,
                                       rate,
+                                      x_offset,
                                       verbose=False)
     pfaps.run()

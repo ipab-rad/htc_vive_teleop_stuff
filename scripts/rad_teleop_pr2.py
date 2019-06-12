@@ -7,8 +7,10 @@ from math import radians
 import rospy
 import actionlib
 # TF stuff
+import tf
+from tf import TransformListener
 from geometry_msgs.msg import PoseStamped
-from tf.transformations import euler_from_quaternion
+# from tf.transformations import euler_from_quaternion
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Float64, Empty
@@ -46,13 +48,16 @@ class PR2Gripper(object):
 
 class PR2Teleop(object):
     def __init__(self, should_filter=True, 
-                 button_start_script=None, 
-                 button_stop_script=None):
+                 relative_control=False):
         self.ik_right = IK("torso_lift_link",
-                           "r_wrist_roll_link",solve_type='Manipulation1')
+                           "r_wrist_roll_link", solve_type='Manipulation1')
                            #"r_gripper_tool_frame")
         self.ik_left = IK("torso_lift_link",
-                          "l_wrist_roll_link",solve_type='Manipulation1')
+                          "l_wrist_roll_link", solve_type='Manipulation1')
+
+        self.relative_control = relative_control
+        self.br = tf.TransformBroadcaster()
+        self.tf_listener = TransformListener()
 
         if should_filter:
             should_filter_str='_filter'
@@ -67,14 +72,28 @@ class PR2Teleop(object):
                                              JointTrajectory,
                                              queue_size=1)
 
-        self.last_left_pose = None
-        self.left_pose = rospy.Subscriber('/left_controller_as_posestamped_offset',
+        # Last controller poses
+        self.controller_last_left_pose = None
+        self.controller_left_pose = rospy.Subscriber('/left_controller_as_posestamped_offset',
                                           PoseStamped,
-                                          self.left_cb, queue_size=1)
-        self.last_right_pose = None
-        self.right_pose = rospy.Subscriber('/right_controller_as_posestamped_offset',
+                                          self.controller_left_cb, queue_size=1)
+        self.controller_last_right_pose = None
+        self.controller_right_pose = rospy.Subscriber('/right_controller_as_posestamped_offset',
                                            PoseStamped,
-                                           self.right_cb, queue_size=1)
+                                           self.controller_right_cb, queue_size=1)
+
+        # Last robot poses
+        self.robot_last_left_pose = None
+        self.robot_left_pose = rospy.Subscriber('/l_wrist_roll_link_as_posestamped',
+                                          PoseStamped,
+                                          self.robot_left_cb, queue_size=1)
+        self.robot_last_right_pose = None
+        self.robot_right_pose = rospy.Subscriber('/r_wrist_roll_link_as_posestamped',
+                                           PoseStamped,
+                                           self.robot_right_cb, queue_size=1)
+        
+
+
         # rostopic echo /vive_left
         self.last_left_buttons = None
         self.last_left_buttons_sub = rospy.Subscriber('/vive_left', Joy,
@@ -90,7 +109,7 @@ class PR2Teleop(object):
         self.right_vibrate_pub = rospy.Publisher('/vive_right_vibration', Float64, queue_size=1)
 
         # self.msg_time_from_start_left = 0.8 # was 0.4
-        # self.msg_time_from_start_right = 0.8 # was 0.4
+        # self.msg_time_from_start_right = 0.8 right_pose# was 0.4
 
         self.move_eps = 0.1 # The arms are not going to move if the button is pressed less than this
         self.move_time_min = 1.0
@@ -101,11 +120,16 @@ class PR2Teleop(object):
         self.record_state_change_time = time.time()
         self.record_state_change_hist_time = 1
 
+
+        self.last_notmove_controller_right_pose = None
+        self.last_notmove_robot_right_pose = None
+        self.last_notmove_controller_left_pose = None
+        self.last_notmove_robot_left_pose = None
+
         self.vibrate_right(3)
         # rospy.sleep(2.0)
         # self.left_gripper.open()
         # self.left_gripperecord_state_change_timer.close()
-
 
     def vibrate_right(self, length=1, strength=0.5):
         def pub():
@@ -114,6 +138,9 @@ class PR2Teleop(object):
 
             rate = 50
             r = rospy.Rate(rate)
+
+
+
             for _ in range(length * rate):
                 self.right_vibrate_pub.publish(msg_f)
                 r.sleep()
@@ -133,13 +160,22 @@ class PR2Teleop(object):
 
         threading.Thread(target=pub).start()
 
-    def left_cb(self, msg):
-        self.last_left_pose = msg
-        # print('Got a new left pose')
+    def controller_left_cb(self, msg):
+        self.controller_last_left_pose = msg
+        # rospy.loginfo('Got a new left pose')
 
-    def right_cb(self, msg):
-        self.last_right_pose = msg
-        # print('Got a new right pose')
+    def controller_right_cb(self, msg):
+        self.controller_last_right_pose = msg
+        # rospy.loginfo('Got a new right pose')
+
+    def robot_left_cb(self, msg):
+        self.robot_last_left_pose = msg
+        # rospy.loginfo('Got a new robot left pose')
+
+    def robot_right_cb(self, msg):
+        self.robot_last_right_pose = msg
+        # rospy.loginfo('Got a new robot right pose')
+
 
 
     def left_button_cb(self, msg):
@@ -214,31 +250,75 @@ class PR2Teleop(object):
 
 
     def right_hand_run_ik_step(self):
-        ps = self.last_right_pose
+        ps = self.controller_last_right_pose
         if ps is None:
             # r.sleep()
-            print("No last right pose...")
+            rospy.logdebug("No last right pose...")
             return
 
         if self.last_right_buttons is None:
-            print('No button information received (right).')
+            rospy.logdebug('No button information received (right).')
             return
 
         if self.last_right_buttons.axes[0] < self.move_eps:
-            # print('Right Button pressed too easy.')
-            return
+            rospy.loginfo('Right Button pressed too easy.')
+            # self.no_move_trigger = True
+            self.last_notmove_controller_right_pose = self.controller_last_right_pose
+            self.last_notmove_robot_right_pose = self.robot_last_right_pose
+            # rospy.loginfo(self.last_notmove_robot_right_pose)
+            return 
 
+        print('Sending a command move message!!!!!!!!')
+        if self.relative_control:
+            if (self.tf_listener.frameExists("last_notmoved_controller_right_pose") and 
+                self.tf_listener.frameExists("last_notmoved_robot_right_pose")):
+                # The transform is there! Let's calculate offset
+                p1 = PoseStamped()
+                p1.header.frame_id = "right_controller_offset"
+                p1.header.stamp = rospy.Time(0) #self.tf_listener.getLatestCommonTime("/right_controller_offset", "/last_notmoved_controller_right_pose")
+                p1.pose.orientation.w = 1.0    # Neutral orientation
+                # p1.pose.position.x = -0.18
+                p_in_base = self.tf_listener.transformPose("last_notmoved_controller_right_pose", p1)
+                # print(p_in_base)
+                # return
 
-        x = self.last_right_pose.pose.position.x
-        y = self.last_right_pose.pose.position.y
-        z = self.last_right_pose.pose.position.z - 0.5
+                p1_robot = PoseStamped()
+                p1_robot.header.frame_id = 'last_notmoved_robot_right_pose'
+                p1_robot.header.stamp = rospy.Time(0) #self.tf_listener.getLatestCommonTime("/last_notmoved_robot_right_pose", "/torso_lift_link")
+                p1_robot.pose.position = p_in_base.pose.position
+                p1_robot.pose.orientation = p_in_base.pose.orientation
+                p_in_robot = self.tf_listener.transformPose('torso_lift_link', p1_robot)
+                
+                print(p_in_robot)
+                ps = p_in_robot
 
-        rx = self.last_right_pose.pose.orientation.x
-        ry = self.last_right_pose.pose.orientation.y
-        rz = self.last_right_pose.pose.orientation.z
-        rw = self.last_right_pose.pose.orientation.w
+                self.br.sendTransform((ps.pose.position.x,
+                                   ps.pose.position.y,
+                                   ps.pose.position.z),
+                     (ps.pose.orientation.x,
+                      ps.pose.orientation.y,
+                      ps.pose.orientation.z,
+                      ps.pose.orientation.w),
+                     rospy.Time.now(),
+                     'target_r_wrist',
+                     'torso_lift_link'
+                     )
 
-        rospy.loginfo("Got pose: " + str(ps))
+                # rospy.loginfo('Offset from last movemenent: ', p_in_base) # raises an error?
+            else:
+                rospy.warn('Transform `last_notmoved_robot_right_pose` or `last_notmoved_controller_right_pose` does not exist.')
+
+        # return
+        x = ps.pose.position.x
+        y = ps.pose.position.y
+        z = ps.pose.position.z# - 0.5
+
+        rx = ps.pose.orientation.x
+        ry = ps.pose.orientation.y
+        rz = ps.pose.orientation.z
+        rw = ps.pose.orientation.w
+
+        # rospy.loginfo("Got pose: " + str(ps))
         sol = None
         retries = 0
         while not sol and retries < 10:
@@ -258,28 +338,28 @@ class PR2Teleop(object):
             print "NO SOLUTION FOUND for RIGHT :("
 
     def left_hand_run_ik_step(self):
-        ps = self.last_left_pose
+        ps = self.controller_last_left_pose
         if ps is None:
             # r.sleep()
-            print("No last left pose...")
+            rospy.logdebug("No last left pose...")
             return
 
         if self.last_left_buttons is None:
-            print('No button information received (left).')
+            rospy.logdebug('No button information received (left).')
             return
 
         if self.last_left_buttons.axes[0] < self.move_eps:
             # print('Left button pressed too easy.')
             return
 
-        x = self.last_left_pose.pose.position.x
-        y = self.last_left_pose.pose.position.y
-        z = self.last_left_pose.pose.position.z - 0.5
+        x = self.controller_last_left_pose.pose.position.x
+        y = self.controller_last_left_pose.pose.position.y
+        z = self.controller_last_left_pose.pose.position.z - 0.5
 
-        rx = self.last_left_pose.pose.orientation.x
-        ry = self.last_left_pose.pose.orientation.y
-        rz = self.last_left_pose.pose.orientation.z
-        rw = self.last_left_pose.pose.orientation.w
+        rx = self.controller_last_left_pose.pose.orientation.x
+        ry = self.controller_last_left_pose.pose.orientation.y
+        rz = self.controller_last_left_pose.pose.orientation.z
+        rw = self.controller_last_left_pose.pose.orientation.w
 
         rospy.loginfo("Got pose: " + str(ps))
         sol = None
@@ -300,6 +380,52 @@ class PR2Teleop(object):
         else:
             print "NO SOLUTION FOUND for LEFT :("
 
+    def republish_tf_frames(self):
+        if self.last_notmove_robot_right_pose:
+            self.br.sendTransform((self.last_notmove_robot_right_pose.pose.position.x,
+                                   self.last_notmove_robot_right_pose.pose.position.y,
+                                   self.last_notmove_robot_right_pose.pose.position.z),
+                     (self.last_notmove_robot_right_pose.pose.orientation.x,
+                      self.last_notmove_robot_right_pose.pose.orientation.y,
+                      self.last_notmove_robot_right_pose.pose.orientation.z,
+                      self.last_notmove_robot_right_pose.pose.orientation.w),
+                     rospy.Time.now(),
+                     'last_notmoved_robot_right_pose',
+                     self.last_notmove_robot_right_pose.header.frame_id)
+        if self.last_notmove_controller_right_pose:
+            self.br.sendTransform((self.last_notmove_controller_right_pose.pose.position.x,
+                                   self.last_notmove_controller_right_pose.pose.position.y,
+                                   self.last_notmove_controller_right_pose.pose.position.z),
+                     (self.last_notmove_controller_right_pose.pose.orientation.x,
+                      self.last_notmove_controller_right_pose.pose.orientation.y,
+                      self.last_notmove_controller_right_pose.pose.orientation.z,
+                      self.last_notmove_controller_right_pose.pose.orientation.w),
+                     rospy.Time.now(),
+                     'last_notmoved_controller_right_pose',
+                     self.last_notmove_controller_right_pose.header.frame_id)
+        if self.last_notmove_robot_left_pose:
+            self.br.sendTransform((self.last_notmove_robot_left_pose.pose.position.x,
+                                   self.last_notmove_robot_left_pose.pose.position.y,
+                                   self.last_notmove_robot_left_pose.pose.position.z),
+                     (self.last_notmove_robot_left_pose.pose.orientation.x,
+                      self.last_notmove_robot_left_pose.pose.orientation.y,
+                      self.last_notmove_robot_left_pose.pose.orientation.z,
+                      self.last_notmove_robot_left_pose.pose.orientation.w),
+                     rospy.Time.now(),
+                     'last_notmoved_robot_left_pose',
+                     self.last_notmove_robot_left_pose.header.frame_id)
+        if self.last_notmove_controller_left_pose:
+            self.br.sendTransform((self.last_notmove_controller_left_pose.pose.position.x,
+                                   self.last_notmove_controller_left_pose.pose.position.y,
+                                   self.last_notmove_controller_left_pose.pose.position.z),
+                     (self.last_notmove_controller_left_pose.pose.orientation.x,
+                      self.last_notmove_controller_left_pose.pose.orientation.y,
+                      self.last_notmove_controller_left_pose.pose.orientation.z,
+                      self.last_notmove_controller_left_pose.pose.orientation.w),
+                     rospy.Time.now(),
+                     'last_notmoved_controller_left_pose',
+                     self.last_notmove_controller_left_pose.header.frame_id)
+
     def run_with_ik(self, arms='both', rate=20):
         self.qinit_right = [0., 0., 0., 0., 0., 0., 0.] 
         self.qinit_left = [0., 0., 0., 0., 0., 0., 0.]
@@ -311,10 +437,13 @@ class PR2Teleop(object):
 
         r = rospy.Rate(rate)
         while not rospy.is_shutdown():
+            self.republish_tf_frames()
+
             if arms == 'right' or arms == 'both':
                 self.right_hand_run_ik_step()
             if arms == 'left' or arms == 'both':
                 self.left_hand_run_ik_step()
+
 
             r.sleep()
 
@@ -325,6 +454,7 @@ if __name__ == '__main__':
     parser.add_argument('--arms', choices=['left', 'right', 'both'], default='both', help='Which arms to use for teleop')
     parser.add_argument('--rate', default=15, type=int, help='what is the rate for IK')
     parser.add_argument('--filter', dest='filter', action='store_true', default=True, help='should filter collision states?')
+    parser.add_argument('--relative-control', dest='relative_control', action='store_true', default=False, help='Relative control.')
     parser.add_argument('--no-filter', dest='filter', action='store_false')
     parser.add_argument('--button-start-script', '-a', type=str, help='The start script executed when grip button is pressed.')
     parser.add_argument('--button-stop-script',  '-z', type=str, help='The stop script executed when grip button is pressed.')
@@ -334,6 +464,5 @@ if __name__ == '__main__':
 
     rospy.init_node('rad_teleop_pr2')
     nv = PR2Teleop(should_filter=args.filter, 
-                   button_start_script=args.button_start_script, 
-                   button_stop_script=args.button_stop_script)
+                   relative_control=True)#args.relative_control)
     nv.run_with_ik(arms=args.arms, rate=args.rate)
