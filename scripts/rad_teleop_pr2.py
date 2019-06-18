@@ -82,15 +82,16 @@ class PR2Teleop(object):
                                            PoseStamped,
                                            self.controller_right_cb, queue_size=1)
 
-        # Last robot poses
-        self.robot_last_left_pose = None
-        self.robot_left_pose = rospy.Subscriber('/l_wrist_roll_link_as_posestamped',
-                                          PoseStamped,
-                                          self.robot_left_cb, queue_size=1)
-        self.robot_last_right_pose = None
-        self.robot_right_pose = rospy.Subscriber('/r_wrist_roll_link_as_posestamped',
-                                           PoseStamped,
-                                           self.robot_right_cb, queue_size=1)
+        if self.relative_control:
+            # Last robot poses
+            self.robot_last_left_pose = None
+            self.robot_left_pose = rospy.Subscriber('/l_wrist_roll_link_as_posestamped',
+                                              PoseStamped,
+                                              self.robot_left_cb, queue_size=1)
+            self.robot_last_right_pose = None
+            self.robot_right_pose = rospy.Subscriber('/r_wrist_roll_link_as_posestamped',
+                                               PoseStamped,
+                                               self.robot_right_cb, queue_size=1)
         
 
 
@@ -108,6 +109,10 @@ class PR2Teleop(object):
         self.left_vibrate_pub = rospy.Publisher('/vive_left_vibration', Float64, queue_size=1)
         self.right_vibrate_pub = rospy.Publisher('/vive_right_vibration', Float64, queue_size=1)
 
+
+        self.ik_publish_rate = rospy.Publisher('/ik_publish_rate',
+                                             Empty,
+                                             queue_size=1)
         # self.msg_time_from_start_left = 0.8 # was 0.4
         # self.msg_time_from_start_right = 0.8 right_pose# was 0.4
 
@@ -230,6 +235,7 @@ class PR2Teleop(object):
         jtp = JointTrajectoryPoint()
         jtp.positions = list(positions)
         jtp.velocities = [0.0] * len(positions)
+        jtp.accelerations = [0.0] * len(positions)
         jtp.time_from_start = rospy.Time(self.calc_move_time(self.last_right_buttons.axes[0]))
         jt.points.append(jtp)
         print("Goal: ")
@@ -244,6 +250,7 @@ class PR2Teleop(object):
         jtp = JointTrajectoryPoint()
         jtp.positions = list(positions)
         jtp.velocities = [0.0] * len(positions)
+        jtp.accelerations = [0.0] * len(positions)
         jtp.time_from_start = rospy.Time(self.calc_move_time(self.last_left_buttons.axes[0]))
         jt.points.append(jtp)
         self.left_command.publish(jt)
@@ -261,18 +268,19 @@ class PR2Teleop(object):
             return
 
         if self.last_right_buttons.axes[0] < self.move_eps:
-            rospy.loginfo('Right Button pressed too easy.')
+            rospy.logdebug('Right Button pressed too easy.')
             # self.no_move_trigger = True
-            self.last_notmove_controller_right_pose = self.controller_last_right_pose
-            self.last_notmove_robot_right_pose = self.robot_last_right_pose
-            # rospy.loginfo(self.last_notmove_robot_right_pose)
+            if self.relative_control:
+                self.last_notmove_controller_right_pose = self.controller_last_right_pose
+                self.last_notmove_robot_right_pose = self.robot_last_right_pose
+                # rospy.loginfo(self.last_notmove_robot_right_pose)
             return 
 
         print('Sending a command move message!!!!!!!!')
         if self.relative_control:
             if (self.tf_listener.frameExists("last_notmoved_controller_right_pose") and 
                 self.tf_listener.frameExists("last_notmoved_robot_right_pose")):
-                # The transform is there! Let's calculate offset
+                # The transform is thejtp.accelerations = [0.0] * len(positions)re! Let's calculate offset
                 p1 = PoseStamped()
                 p1.header.frame_id = "right_controller_offset"
                 p1.header.stamp = rospy.Time(0) #self.tf_listener.getLatestCommonTime("/right_controller_offset", "/last_notmoved_controller_right_pose")
@@ -426,18 +434,22 @@ class PR2Teleop(object):
                      'last_notmoved_controller_left_pose',
                      self.last_notmove_controller_left_pose.header.frame_id)
 
-    def run_with_ik(self, arms='both', rate=20):
+    def run_with_ik(self, rate, arms='both'):
         self.qinit_right = [0., 0., 0., 0., 0., 0., 0.] 
         self.qinit_left = [0., 0., 0., 0., 0., 0., 0.]
         # x = y = z = 0.0
         # rx = ry = rz = 0.0
         # rw = 1.0
-        self.bx = self.by = self.bz = 0.01
-        self.brx = self.bry = self.brz = 0.5
+        self.bx = self.by = self.bz = 1e-7#0.01
+        self.brx = self.bry = self.brz = 1e-7 #0.5
 
         r = rospy.Rate(rate)
         while not rospy.is_shutdown():
-            self.republish_tf_frames()
+
+            self.ik_publish_rate.publish()
+            
+            if self.relative_control:
+                self.republish_tf_frames()
 
             if arms == 'right' or arms == 'both':
                 self.right_hand_run_ik_step()
@@ -452,7 +464,7 @@ if __name__ == '__main__':
     print("Location of trak_ik: ", trac_ik_python.__file__)
     parser = argparse.ArgumentParser()
     parser.add_argument('--arms', choices=['left', 'right', 'both'], default='both', help='Which arms to use for teleop')
-    parser.add_argument('--rate', default=15, type=int, help='what is the rate for IK')
+    parser.add_argument('--rate', default=30, type=int, help='what is the rate for IK')
     parser.add_argument('--filter', dest='filter', action='store_true', default=True, help='should filter collision states?')
     parser.add_argument('--relative-control', dest='relative_control', action='store_true', default=False, help='Relative control.')
     parser.add_argument('--no-filter', dest='filter', action='store_false')
@@ -464,5 +476,5 @@ if __name__ == '__main__':
 
     rospy.init_node('rad_teleop_pr2')
     nv = PR2Teleop(should_filter=args.filter, 
-                   relative_control=True)#args.relative_control)
+                   relative_control=args.relative_control)
     nv.run_with_ik(arms=args.arms, rate=args.rate)

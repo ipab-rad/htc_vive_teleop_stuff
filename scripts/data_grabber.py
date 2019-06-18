@@ -41,7 +41,7 @@ class DataGrabber:
     
     def toggle_recording(self, data):
         if self.recording:
-            print("Turning off recording")
+            print("Turning off recording for {}".format(self.recordingFolder))
             self.recording = False
             self.recordingFolder = None
             # TODO: Should we scp the information off somewhere? 
@@ -50,7 +50,7 @@ class DataGrabber:
             print("Turning on recording")
             self.recording = True
             self.recordingFolder = os.path.join(self.root_path, 
-                                "Demos/Demo_{}".format(datetime.now()))
+                                "Demos/Demo_{}".format(datetime.now().strftime('%Y_%m_%d_%H_%M_%S')))
             makedirs(self.recordingFolder)
             # print("Current Directory:", os.getcwd())
             print("Folder made at {}".format(self.recordingFolder))
@@ -63,7 +63,7 @@ class DataGrabber:
         try:
             cv_image = self.bridge.imgmsg_to_cv2(im, "bgr8")
 
-            t_stamp = im.header.stamp.to_sec()
+            t_stamp = int(im.header.stamp.to_nsec())
             image_name = self.image_topic.strip('/').replace('/', '_') + '_{}.jpg'
             im_path = join(self.recordingFolder, image_name.format(t_stamp))
             vel_path = join(self.recordingFolder, "joint_vel_{}.txt".format(t_stamp))

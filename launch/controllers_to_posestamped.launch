@@ -2,10 +2,10 @@
   <node name="left_controller_ps" 
     pkg="htc_vive_teleop_stuff" 
     type="frame_as_posestamped.py"
-    args="left_controller hmd 30 -0.18"/>
+    args="left_controller hmd 100 -0.18"/>
   <node name="right_controller_ps" 
     pkg="htc_vive_teleop_stuff" 
     type="frame_as_posestamped.py"
-    args="right_controller hmd 30 -0.18" 
+    args="right_controller hmd 100 -0.18" 
     output="log"/>
 </launch>

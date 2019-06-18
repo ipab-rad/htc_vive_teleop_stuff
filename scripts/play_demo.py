@@ -9,10 +9,10 @@ if len(sys.argv) != 2:
     print("Usage: python play_demo.py <file_glob_pattern>")
     sys.exit(0)
 
-print(sys.argv)
+print('Args:', sys.argv)
 # Specify a folder, then search for each of the images in this 
 f_names = sorted(glob.glob(sys.argv[1]))
-print(f_names)
+print('Files:', f_names, len(f_names))
 
 fig = plt.figure()
 ims = []
