@@ -23,11 +23,11 @@ class JointTrajFilter(object):
 
     def unfiltered_command_cb(self, msg):
         self.unfiltered_command_cb = msg
-        print('msg:', msg)
+        print('joint state msg to be filtered:', msg)
         valid = state_validity.check_state(names=msg.joint_names,
                                            positions=msg.points[-1].positions,
                                            service=self.state_service)
-        print(valid)
+        print('joint state validity: ', valid)
         if valid:
             self.command_pub.publish(msg)
 

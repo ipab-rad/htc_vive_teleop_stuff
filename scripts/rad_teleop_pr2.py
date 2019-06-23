@@ -110,7 +110,7 @@ class PR2Teleop(object):
         self.right_vibrate_pub = rospy.Publisher('/vive_right_vibration', Float64, queue_size=1)
 
 
-        self.ik_publish_rate = rospy.Publisher('/ik_publish_rate',
+        self.ik_publish_rate = rospy.Publisher('/rate_ik_publish',
                                              Empty,
                                              queue_size=1)
         # self.msg_time_from_start_left = 0.8 # was 0.4
