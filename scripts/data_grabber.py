@@ -100,7 +100,7 @@ class DataGrabber:
 
             np.savetxt(vel_path, joint_state.velocity)
             np.savetxt(pose_path, joint_state.position)
-            np.savetxt(pose_path, joint_state.effort)
+            np.savetxt(effort_path, joint_state.effort)
             np.savetxt(names_path, joint_state.name, fmt='%s')
 
             self.save_rate_publish.publish()
