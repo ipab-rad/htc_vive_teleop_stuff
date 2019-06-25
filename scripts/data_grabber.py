@@ -94,12 +94,12 @@ class DataGrabber:
             
             # Save joint states
             vel_path = join(out_folder, "joint_vel_{}.txt".format(t_stamp))
-            pose_path = join(out_folder, "joint_pos_{}.txt".format(t_stamp))
+            position_path = join(out_folder, "joint_position_{}.txt".format(t_stamp))
             names_path = join(out_folder, "joint_names_{}.txt".format(t_stamp))
             effort_path = join(out_folder, "joint_effort_{}.txt".format(t_stamp))
 
             np.savetxt(vel_path, joint_state.velocity)
-            np.savetxt(pose_path, joint_state.position)
+            np.savetxt(position_path, joint_state.position)
             np.savetxt(effort_path, joint_state.effort)
             np.savetxt(names_path, joint_state.name, fmt='%s')
 
