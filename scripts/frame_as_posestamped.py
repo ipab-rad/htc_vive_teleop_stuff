@@ -34,8 +34,9 @@ class PublishFrameAsPoseStamped(object):
         topic_name = frame_to_posestamped.replace('/', '')
         self.pose_pub = rospy.Publisher(topic_name + '_as_posestamped',
                                         PoseStamped, queue_size=1)
-        self.pose_pub_offset = rospy.Publisher(topic_name + '_as_posestamped_offset',
-                                        PoseStamped, queue_size=1)
+        if x_offset != 0:
+            self.pose_pub_offset = rospy.Publisher(topic_name + '_as_posestamped_offset',
+                                            PoseStamped, queue_size=1)
         self.frame_to_posestamped = frame_to_posestamped
         self.reference_frame = reference_frame
         self.rate = rospy.Rate(rate)
@@ -52,8 +53,7 @@ class PublishFrameAsPoseStamped(object):
         :param str to_frame: to what frame transform.
         """
         ps = PoseStamped()
-        # ps.header.stamp = #self.tf_l.getLatestCommonTime(from_frame,
-        # to_frame)
+        # ps.header.stamp = self.tf_l.getLatestCommonTime(from_frame, to_frame)
         ps.header.frame_id = from_frame
         ps.pose = pose
         transform_ok = False
@@ -70,8 +70,7 @@ class PublishFrameAsPoseStamped(object):
                         str(e) + ")")
                     last_warn = rospy.Time.now()
                 rospy.sleep(0.2)
-                ps.header.stamp = self.tf_l.getLatestCommonTime(
-                    from_frame, to_frame)
+                ps.header.stamp = self.tf_l.getLatestCommonTime(from_frame, to_frame)
             except tf.LookupException as e:
                 if rospy.Time.now() > (last_warn + min_time_in_between_warns):
                     rospy.logwarn(
@@ -101,6 +100,9 @@ class PublishFrameAsPoseStamped(object):
                                           self.frame_to_posestamped,
                                           self.reference_frame)
             self.pose_pub.publish(tfed_ps)
+            if self.verbose:
+                print('Std pose: ', tfed_ps)
+
             if self.x_offset != 0:
                 tfed_ps_offset = self.transform_pose(ps_offset,
                                               self.frame_to_posestamped,
@@ -120,8 +122,6 @@ class PublishFrameAsPoseStamped(object):
                 #      self.reference_frame)
                 if self.verbose:
                     print('Offset pose: ', tfed_ps_offset)
-            if self.verbose:
-                print('Std pose: ', tfed_ps)
             self.rate.sleep()
 
 
@@ -139,11 +139,11 @@ if __name__ == '__main__':
     if len(argv) == 4:
         rate = int(argv[3])
     else:
-        rate = 10
+        rate = 30
 
     if len(argv) == 5:
         x_offset = float(argv[4])
-        print('oddsadasdas', x_offset)
+        print('x-offset', x_offset)
     else:
         x_offset = 0
     
