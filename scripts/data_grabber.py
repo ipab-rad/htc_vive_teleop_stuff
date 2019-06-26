@@ -25,6 +25,7 @@ class DataGrabber:
 
         self.recording = False
         self.recordingFolder = None
+        self.joint_names_recorded = False
         self.root_path = root_path
         self.image_topics = image_topics
 
@@ -58,6 +59,7 @@ class DataGrabber:
             makedirs(self.recordingFolder)
             # print("Current Directory:", os.getcwd())
             print("Folder made at {}".format(self.recordingFolder))
+            self.joint_names_recorded = False
 
 
     def demo_callback(self, *data):
@@ -92,16 +94,20 @@ class DataGrabber:
                     im_path = join(out_folder, image_name.format(t_stamp))
                     cv2.imwrite(im_path, cv_image)
             
+            # Record joint names
+            if not self.joint_names_recorded:
+                names_path = join(out_folder, "joint_names_{}.txt".format(t_stamp))
+                np.savetxt(names_path, joint_state.name, fmt='%s')
+                self.joint_names_recorded = True
+
             # Save joint states
             vel_path = join(out_folder, "joint_vel_{}.txt".format(t_stamp))
             position_path = join(out_folder, "joint_position_{}.txt".format(t_stamp))
-            names_path = join(out_folder, "joint_names_{}.txt".format(t_stamp))
             effort_path = join(out_folder, "joint_effort_{}.txt".format(t_stamp))
 
             np.savetxt(vel_path, joint_state.velocity)
             np.savetxt(position_path, joint_state.position)
             np.savetxt(effort_path, joint_state.effort)
-            np.savetxt(names_path, joint_state.name, fmt='%s')
 
             self.save_rate_publish.publish()
             print ("Saving image at time {}".format(t_stamp))
