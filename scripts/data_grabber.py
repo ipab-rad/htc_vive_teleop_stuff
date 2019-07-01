@@ -36,10 +36,10 @@ class DataGrabber:
         rospy.Subscriber('/toggle_recording', Empty, self.toggle_recording)
 
         self.arm_names =  ['l', 'r']
-        im_subs = [message_filters.Subscriber(image_topic, Image) for image_topic in self.image_topics]
-        eff_subs = [message_filters.Subscriber(arm + '_wrist_roll_link_as_posestamped', PoseStamped) for arm in self.arm_names]
-        acc_subs = [message_filters.Subscriber('accelerometer/{}_gripper_motor_throttled'.format(arm), AccelerometerState) for arm in self.arm_names]
-        joints_sub = message_filters.Subscriber('joint_states', JointState)
+        im_subs = [message_filters.Subscriber(image_topic, Image, queue_size=1) for image_topic in self.image_topics]
+        eff_subs = [message_filters.Subscriber(arm + '_wrist_roll_link_as_posestamped', PoseStamped, queue_size=1) for arm in self.arm_names]
+        acc_subs = [message_filters.Subscriber('accelerometer/{}_gripper_motor_throttled'.format(arm), AccelerometerState, queue_size=1) for arm in self.arm_names]
+        joints_sub = message_filters.Subscriber('joint_states', JointState, queue_size=1)
 
         synched_sub = message_filters.ApproximateTimeSynchronizer(
                         im_subs + eff_subs + acc_subs + [joints_sub], 
@@ -139,7 +139,7 @@ class DataGrabber:
                 np.savetxt(acc_path, max_acc)
 
             self.save_rate_publish.publish()
-            rospy.loginfo('Saving at time {}'.format(t_stamp))
+            rospy.logdebug('Saving at time {}'.format(t_stamp))
         except CvBridgeError as e:
             rospy.logwarn('No transform available')
 

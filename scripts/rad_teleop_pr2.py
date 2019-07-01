@@ -319,7 +319,7 @@ class PR2Teleop(object):
         # return
         x = ps.pose.position.x
         y = ps.pose.position.y
-        z = ps.pose.position.z# - 0.5
+        z = ps.pose.position.z - 0.5
 
         rx = ps.pose.orientation.x
         ry = ps.pose.orientation.y
