@@ -179,7 +179,7 @@ if __name__ == '__main__':
     max_init_retries = 4
     while retries < max_init_retries:
         try:
-            openvr.init(openvr.VRApplication_Scene)
+            openvr.init(openvr.VRApplication_Overlay)
             break
         except openvr.OpenVRError as e:
             print("Error when initializing OpenVR (try {} / {})".format(
