@@ -218,7 +218,7 @@ class PR2Teleop(object):
                 self.record_state_change_time = time.time()
 
                 self.record_pub.publish()
-                self.vibrate_left(1, strength=0.6)
+                self.vibrate_right(1, strength=0.9)
 
         self.last_right_buttons = msg
 
@@ -360,7 +360,7 @@ class PR2Teleop(object):
             # print('Left button pressed too easy.')
             return
 
-        x = self.controller_last_left_pose.pose.position.x
+        x = self.controller_last_left_pose.pose.position.x 
         y = self.controller_last_left_pose.pose.position.y
         z = self.controller_last_left_pose.pose.position.z - 0.5
 

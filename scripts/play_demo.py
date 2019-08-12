@@ -21,11 +21,17 @@ ims = []
 ims = (cv2.imread(f_name) for f_name in f_names)
 im_arts = [[plt.imshow(im[:, :, [2, 1, 0]], animated=True)] for im in ims]
 
-ani = animation.ArtistAnimation(fig, im_arts, interval=50, blit=True, repeat_delay=3000)
+# Make cleaner by removing axis and whitespace
+plt.axis('off')
+plt.tight_layout()
+# plt.margins(0,0)
+plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
-# # Set up formatting for the movie files
-# Writer = animation.writers['ffmpeg']
-# writer = Writer(fps=20, metadata=dict(artist='pc'), bitrate=1800)
-# ani.save('video.mp4', writer=writer)
+ani = animation.ArtistAnimation(fig, im_arts, interval=50, blit=True, repeat_delay=50)
+
+# Set up formatting for the movie files
+Writer = animation.writers['ffmpeg']
+writer = Writer(fps=20, metadata=dict(artist='pc'), bitrate=1800)
+ani.save('video.mp4', writer=writer)
 
 plt.show()
