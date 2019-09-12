@@ -19,7 +19,8 @@ import trac_ik_python
 from trac_ik_python.trac_ik import IK
 from pr2_controllers_msgs.msg import Pr2GripperCommandAction, Pr2GripperCommandGoal
 
-
+import moveit_commander
+import copy
 class PR2Gripper(object):
     """docstring for PR2Gripper"""
     def __init__(self, arm):
@@ -49,6 +50,10 @@ class PR2Gripper(object):
 class PR2Teleop(object):
     def __init__(self, should_filter=True, 
                  relative_control=False):
+        self.robot = moveit_commander.RobotCommander()
+        self.group_left = moveit_commander.MoveGroupCommander('left_arm')
+        self.group_right = moveit_commander.MoveGroupCommander('right_arm')
+
         self.ik_right = IK("torso_lift_link",
                            "r_wrist_roll_link", solve_type='Manipulation1')
                            #"r_gripper_tool_frame")
@@ -58,6 +63,10 @@ class PR2Teleop(object):
         self.relative_control = relative_control
         self.br = tf.TransformBroadcaster()
         self.tf_listener = TransformListener()
+
+	self.recording = False
+	self.start_pose_left = None
+	self.start_pose_right = None
 
         if should_filter:
             should_filter_str='_filter'
@@ -194,10 +203,29 @@ class PR2Teleop(object):
             self.vibrate_right(1)
         if msg.buttons[4] == 1 and self.last_left_buttons.buttons[4] == 0:
             if time.time() - self.record_state_change_time > self.record_state_change_hist_time:
+		# return to goal if recording is now over, else set starting pose
+		print('Toggling recording and returning to start')
+		if self.recording:
+		    self.group_right.clear_pose_targets()
+                    self.group_left.clear_pose_targets()
+                    self.group_right.set_pose_target(self.start_pose_right.pose)
+                    self.group_left.set_pose_target(self.start_pose_left.pose)
+                    psr = self.group_right.go(wait=True)
+                    psl = self.group_left.go(wait=True)
+                    if psr and psl:
+                        rospy.loginfo('Successfully planned to start')
+                    else:
+                        rospy.logerr('Failed to return to start positions')
+			print('Failed to move from ',self.controller_last_left_pose, 'to ',self.start_pose_left)
+		else:
+                    self.tf_listener.waitForTransform("/hmd", "/base_link",rospy.Time.now(), rospy.Duration(1.0));
+		    self.start_pose_left = self.tf_listener.transformPose('base_link',self.controller_last_left_pose)
+                    self.start_pose_right = self.tf_listener.transformPose('base_link',self.controller_last_right_pose)
                 # update last time command was executed!
                 self.record_state_change_time = time.time()
 
                 self.record_pub.publish()
+		self.recording = not self.recording
                 self.vibrate_left(1, strength=0.6)
 
         self.last_left_buttons = msg
@@ -239,7 +267,7 @@ class PR2Teleop(object):
         jtp.time_from_start = rospy.Time(self.calc_move_time(self.last_right_buttons.axes[0]))
         jt.points.append(jtp)
         print("Goal: ")
-        print(jt)
+        #print(jt)
         self.right_command.publish(jt)
 
     def send_left_arm_goal(self, positions):
