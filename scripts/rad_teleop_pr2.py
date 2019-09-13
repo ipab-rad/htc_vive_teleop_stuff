@@ -51,8 +51,7 @@ class PR2Teleop(object):
     def __init__(self, should_filter=True, 
                  relative_control=False):
         self.robot = moveit_commander.RobotCommander()
-        self.group_left = moveit_commander.MoveGroupCommander('left_arm')
-        self.group_right = moveit_commander.MoveGroupCommander('right_arm')
+        self.group = moveit_commander.MoveGroupCommander('arms')
 
         self.ik_right = IK("torso_lift_link",
                            "r_wrist_roll_link", solve_type='Manipulation1')
@@ -64,8 +63,7 @@ class PR2Teleop(object):
         self.br = tf.TransformBroadcaster()
         self.tf_listener = TransformListener()
 
-	self.start_pose_left = None
-	self.start_pose_right = None
+	self.start_pose = None
 
         if should_filter:
             should_filter_str='_filter'
@@ -199,17 +197,17 @@ class PR2Teleop(object):
             elif (msg.axes[1] < -0.5):
                 self.left_gripper.open()
 	    elif (msg.axes[2] < -0.5):
-	    	if self.start_pose_right and self.start_pose_left:
-                    psr = self.group_right.go(self.start_pose_right,wait=True)
-                    psl = self.group_left.go(self.start_pose_left,wait=True)
-                    if psr and psl:
+	    	if self.start_pose:
+                    ps = self.group.go(self.start_pose,wait=True)
+                    if ps:
                         rospy.loginfo('Successfully planned to start')
                     else:
                         rospy.logerr('Failed to return to start positions')
+			self.vibrate_left(1,0.6)
 	    elif (msg.axes[2] > 0.5):
-	        self.start_pose_left = self.group_left.get_current_joint_values()
-                self.start_pose_right = self.group_right.get_current_joint_values()
+	        self.start_pose = self.group.get_current_joint_values()
 	        rospy.loginfo('Logging joint states for pose return')
+		self.vibrate_left(1)
                 # update last time command was executed!
 		
 		
@@ -223,7 +221,7 @@ class PR2Teleop(object):
                 self.record_state_change_time = time.time()
 
                 self.record_pub.publish()
-		self.recording = not self.recording
+
                 self.vibrate_left(1, strength=0.6)
 	
         self.last_left_buttons = msg
