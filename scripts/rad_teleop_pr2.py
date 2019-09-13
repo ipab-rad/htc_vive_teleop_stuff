@@ -64,7 +64,6 @@ class PR2Teleop(object):
         self.br = tf.TransformBroadcaster()
         self.tf_listener = TransformListener()
 
-	self.recording = False
 	self.start_pose_left = None
 	self.start_pose_right = None
 
@@ -195,39 +194,38 @@ class PR2Teleop(object):
     def left_button_cb(self, msg):
         # print('Button press msg: ', msg)
         if msg.buttons[2] == 1:
-            if (msg.axes[1] > 0):
+            if (msg.axes[1] > 0.5):
                 self.left_gripper.close()
-            else:
+            elif (msg.axes[1] < -0.5):
                 self.left_gripper.open()
+	    elif (msg.axes[2] < -0.5):
+	    	if self.start_pose_right and self.start_pose_left:
+                    psr = self.group_right.go(self.start_pose_right,wait=True)
+                    psl = self.group_left.go(self.start_pose_left,wait=True)
+                    if psr and psl:
+                        rospy.loginfo('Successfully planned to start')
+                    else:
+                        rospy.logerr('Failed to return to start positions')
+	    elif (msg.axes[2] > 0.5):
+	        self.start_pose_left = self.group_left.get_current_joint_values()
+                self.start_pose_right = self.group_right.get_current_joint_values()
+	        rospy.loginfo('Logging joint states for pose return')
+                # update last time command was executed!
+		
+		
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
         if msg.buttons[4] == 1 and self.last_left_buttons.buttons[4] == 0:
             if time.time() - self.record_state_change_time > self.record_state_change_hist_time:
 		# return to goal if recording is now over, else set starting pose
 		print('Toggling recording and returning to start')
-		if self.recording:
-		    self.group_right.clear_pose_targets()
-                    self.group_left.clear_pose_targets()
-                    self.group_right.set_pose_target(self.start_pose_right.pose)
-                    self.group_left.set_pose_target(self.start_pose_left.pose)
-                    psr = self.group_right.go(wait=True)
-                    psl = self.group_left.go(wait=True)
-                    if psr and psl:
-                        rospy.loginfo('Successfully planned to start')
-                    else:
-                        rospy.logerr('Failed to return to start positions')
-			print('Failed to move from ',self.controller_last_left_pose, 'to ',self.start_pose_left)
-		else:
-                    self.tf_listener.waitForTransform("/hmd", "/base_link",rospy.Time.now(), rospy.Duration(1.0));
-		    self.start_pose_left = self.tf_listener.transformPose('base_link',self.controller_last_left_pose)
-                    self.start_pose_right = self.tf_listener.transformPose('base_link',self.controller_last_right_pose)
-                # update last time command was executed!
+	
                 self.record_state_change_time = time.time()
 
                 self.record_pub.publish()
 		self.recording = not self.recording
                 self.vibrate_left(1, strength=0.6)
-
+	
         self.last_left_buttons = msg
 
 
