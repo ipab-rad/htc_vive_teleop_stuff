@@ -215,8 +215,6 @@ class PR2Teleop(object):
             self.vibrate_right(1)
         if msg.buttons[4] == 1 and self.last_left_buttons.buttons[4] == 0:
             if time.time() - self.record_state_change_time > self.record_state_change_hist_time:
-		# return to goal if recording is now over, else set starting pose
-		print('Toggling recording and returning to start')
 	
                 self.record_state_change_time = time.time()
 
