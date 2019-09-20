@@ -19,8 +19,7 @@ import trac_ik_python
 from trac_ik_python.trac_ik import IK
 from pr2_controllers_msgs.msg import Pr2GripperCommandAction, Pr2GripperCommandGoal
 
-import moveit_commander
-import copy
+
 class PR2Gripper(object):
     """docstring for PR2Gripper"""
     def __init__(self, arm):
@@ -50,9 +49,6 @@ class PR2Gripper(object):
 class PR2Teleop(object):
     def __init__(self, should_filter=True, 
                  relative_control=False):
-        self.robot = moveit_commander.RobotCommander()
-        self.group = moveit_commander.MoveGroupCommander('arms')
-
         self.ik_right = IK("torso_lift_link",
                            "r_wrist_roll_link", solve_type='Manipulation1')
                            #"r_gripper_tool_frame")
@@ -62,8 +58,6 @@ class PR2Teleop(object):
         self.relative_control = relative_control
         self.br = tf.TransformBroadcaster()
         self.tf_listener = TransformListener()
-
-	self.start_pose = None
 
         if should_filter:
             should_filter_str='_filter'
@@ -191,39 +185,21 @@ class PR2Teleop(object):
 
     def left_button_cb(self, msg):
         # print('Button press msg: ', msg)
-        if msg.buttons[2] == 1: # Click in middle pad
-            # Left and right sides open/close gripper
-            if (msg.axes[1] > 0.5):
+        if msg.buttons[2] == 1:
+            if (msg.axes[1] > 0):
                 self.left_gripper.close()
-            elif (msg.axes[1] < -0.5):
+            else:
                 self.left_gripper.open()
-
-            # Up/down saves a pose or resets to last save
-            elif (msg.axes[2] < -0.5):
-                if self.start_pose:
-                    reset_success = self.group.go(self.start_pose,wait=True)
-                    if reset_success:
-                        rospy.loginfo('Successfully planned to start')
-                    else:
-                        rospy.logerr('Failed to return to start positions')
-                    self.vibrate_left(1,0.6)
-            elif (msg.axes[2] > 0.5):
-                self.start_pose = self.group.get_current_joint_values()
-                rospy.loginfo('Logging joint states for pose return')
-                self.vibrate_left(1)
-		
-		
         if msg.buttons[3] == 1:
             self.vibrate_right(1)
         if msg.buttons[4] == 1 and self.last_left_buttons.buttons[4] == 0:
             if time.time() - self.record_state_change_time > self.record_state_change_hist_time:
-	
+                # update last time command was executed!
                 self.record_state_change_time = time.time()
 
                 self.record_pub.publish()
-
                 self.vibrate_left(1, strength=0.6)
-	
+
         self.last_left_buttons = msg
 
 
@@ -263,7 +239,7 @@ class PR2Teleop(object):
         jtp.time_from_start = rospy.Time(self.calc_move_time(self.last_right_buttons.axes[0]))
         jt.points.append(jtp)
         print("Goal: ")
-        #print(jt)
+        print(jt)
         self.right_command.publish(jt)
 
     def send_left_arm_goal(self, positions):
@@ -306,10 +282,13 @@ class PR2Teleop(object):
                 self.tf_listener.frameExists("last_notmoved_robot_right_pose")):
                 # The transform is thejtp.accelerations = [0.0] * len(positions)re! Let's calculate offset
                 p1 = PoseStamped()
-                p1.header.frame_id = "/right_controller_offset"
+                p1.header.frame_id = "right_controller_offset"
                 p1.header.stamp = rospy.Time(0) #self.tf_listener.getLatestCommonTime("/right_controller_offset", "/last_notmoved_controller_right_pose")
                 p1.pose.orientation.w = 1.0    # Neutral orientation
+                # p1.pose.position.x = -0.18
                 p_in_base = self.tf_listener.transformPose("last_notmoved_controller_right_pose", p1)
+                # print(p_in_base)
+                # return
 
                 p1_robot = PoseStamped()
                 p1_robot.header.frame_id = 'last_notmoved_robot_right_pose'
@@ -318,6 +297,7 @@ class PR2Teleop(object):
                 p1_robot.pose.orientation = p_in_base.pose.orientation
                 p_in_robot = self.tf_listener.transformPose('torso_lift_link', p1_robot)
                 
+                print(p_in_robot)
                 ps = p_in_robot
 
                 self.br.sendTransform((ps.pose.position.x,
@@ -332,15 +312,14 @@ class PR2Teleop(object):
                      'torso_lift_link'
                      )
 
+                # rospy.loginfo('Offset from last movemenent: ', p_in_base) # raises an error?
             else:
                 rospy.warn('Transform `last_notmoved_robot_right_pose` or `last_notmoved_controller_right_pose` does not exist.')
 
         # return
-        x = ps.pose.position.x
+        x = ps.pose.position.x + 0.25
         y = ps.pose.position.y
-        z = ps.pose.position.z
-        if not self.relative_control:
-            z -= 0.5
+        z = ps.pose.position.z + 0.5
 
         rx = ps.pose.orientation.x
         ry = ps.pose.orientation.y
@@ -381,9 +360,9 @@ class PR2Teleop(object):
             # print('Left button pressed too easy.')
             return
 
-        x = self.controller_last_left_pose.pose.position.x 
+        x = self.controller_last_left_pose.pose.position.x + 0.25
         y = self.controller_last_left_pose.pose.position.y
-        z = self.controller_last_left_pose.pose.position.z - 0.5
+        z = self.controller_last_left_pose.pose.position.z + 0.5
 
         rx = self.controller_last_left_pose.pose.orientation.x
         ry = self.controller_last_left_pose.pose.orientation.y
@@ -411,17 +390,49 @@ class PR2Teleop(object):
 
     def republish_tf_frames(self):
         if self.last_notmove_robot_right_pose:
-            pos, orientation = pose_to_tuples(self.last_notmove_robot_right_pose.pose)
-            self.br.sendTransform(pos, orientation, rospy.Time.now(), 'last_notmoved_robot_right_pose', self.last_notmove_robot_right_pose.header.frame_id)
+            self.br.sendTransform((self.last_notmove_robot_right_pose.pose.position.x,
+                                   self.last_notmove_robot_right_pose.pose.position.y,
+                                   self.last_notmove_robot_right_pose.pose.position.z),
+                     (self.last_notmove_robot_right_pose.pose.orientation.x,
+                      self.last_notmove_robot_right_pose.pose.orientation.y,
+                      self.last_notmove_robot_right_pose.pose.orientation.z,
+                      self.last_notmove_robot_right_pose.pose.orientation.w),
+                     rospy.Time.now(),
+                     'last_notmoved_robot_right_pose',
+                     self.last_notmove_robot_right_pose.header.frame_id)
         if self.last_notmove_controller_right_pose:
-            pos, orientation = pose_to_tuples(self.last_notmove_controller_right_pose.pose)
-            self.br.sendTransform(pos, orientation, rospy.Time.now(), 'last_notmoved_controller_right_pose', self.last_notmove_controller_right_pose.header.frame_id)
+            self.br.sendTransform((self.last_notmove_controller_right_pose.pose.position.x,
+                                   self.last_notmove_controller_right_pose.pose.position.y,
+                                   self.last_notmove_controller_right_pose.pose.position.z),
+                     (self.last_notmove_controller_right_pose.pose.orientation.x,
+                      self.last_notmove_controller_right_pose.pose.orientation.y,
+                      self.last_notmove_controller_right_pose.pose.orientation.z,
+                      self.last_notmove_controller_right_pose.pose.orientation.w),
+                     rospy.Time.now(),
+                     'last_notmoved_controller_right_pose',
+                     self.last_notmove_controller_right_pose.header.frame_id)
         if self.last_notmove_robot_left_pose:
-            pos, orientation = pose_to_tuples(self.last_notmove_robot_left_pose.pose)
-            self.br.sendTransform(pos, orientation, rospy.Time.now(), 'last_notmoved_robot_left_pose', self.last_notmove_robot_left_pose.header.frame_id)
+            self.br.sendTransform((self.last_notmove_robot_left_pose.pose.position.x,
+                                   self.last_notmove_robot_left_pose.pose.position.y,
+                                   self.last_notmove_robot_left_pose.pose.position.z),
+                     (self.last_notmove_robot_left_pose.pose.orientation.x,
+                      self.last_notmove_robot_left_pose.pose.orientation.y,
+                      self.last_notmove_robot_left_pose.pose.orientation.z,
+                      self.last_notmove_robot_left_pose.pose.orientation.w),
+                     rospy.Time.now(),
+                     'last_notmoved_robot_left_pose',
+                     self.last_notmove_robot_left_pose.header.frame_id)
         if self.last_notmove_controller_left_pose:
-            pos, orientation = pose_to_tuples(self.last_notmove_controller_left_pose.pose)
-            self.br.sendTransform(pos, orientation, rospy.Time.now(), 'last_notmoved_controller_left_pose', self.last_notmove_controller_left_pose.header.frame_id)
+            self.br.sendTransform((self.last_notmove_controller_left_pose.pose.position.x,
+                                   self.last_notmove_controller_left_pose.pose.position.y,
+                                   self.last_notmove_controller_left_pose.pose.position.z),
+                     (self.last_notmove_controller_left_pose.pose.orientation.x,
+                      self.last_notmove_controller_left_pose.pose.orientation.y,
+                      self.last_notmove_controller_left_pose.pose.orientation.z,
+                      self.last_notmove_controller_left_pose.pose.orientation.w),
+                     rospy.Time.now(),
+                     'last_notmoved_controller_left_pose',
+                     self.last_notmove_controller_left_pose.header.frame_id)
 
     def run_with_ik(self, rate, arms='both'):
         self.qinit_right = [0., 0., 0., 0., 0., 0., 0.] 
@@ -447,12 +458,6 @@ class PR2Teleop(object):
 
 
             r.sleep()
-
-
-def pose_to_tuples(pose):
-    position = (pose.position.x, pose.position.y, pose.position.z)
-    orientation = (pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
-    return position, orientation
 
 
 if __name__ == '__main__':

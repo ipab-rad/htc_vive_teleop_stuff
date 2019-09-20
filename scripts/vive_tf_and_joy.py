@@ -46,8 +46,8 @@ def get_lighthouse_ids(vrsys=None):
         vrsys = vrsys
         lighthouse_ids = []
     for i in range(openvr.k_unMaxTrackedDeviceCount):
-        device_class = vrsys.getTrackedDeviceClass(i)
-        if device_class == openvr.TrackedDeviceClass_TrackingReference:
+         device_class = vrsys.getTrackedDeviceClass(i)
+         if device_class == openvr.TrackedDeviceClass_TrackingReference:
             lighthouse_ids.append(i)
     return lighthouse_ids
 
@@ -209,6 +209,7 @@ if __name__ == '__main__':
             left_id, right_id = get_controller_ids(vrsystem)
             if left_id and right_id:
                 break
+            print("Left ID is {}, Right ID is {}".format(left_id, right_id))
             print("Waiting for controllers...")
             time.sleep(1.0)
     except KeyboardInterrupt:
@@ -305,6 +306,8 @@ if __name__ == '__main__':
                                                 now,
                                                 "left_controller")
             prev_unPacketNum_left = pControllerState.unPacketNum
+            # print('asdasdas', j)
+
             if new_msg:
                 joy_left_pub.publish(j)
             # print("Left controller:")
