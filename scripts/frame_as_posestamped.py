@@ -109,17 +109,17 @@ class PublishFrameAsPoseStamped(object):
                                               self.reference_frame)
                 self.pose_pub_offset.publish(tfed_ps_offset)
 
-                # #Publish offset_tf
-                # self.br.sendTransform((tfed_ps_offset.pose.position.x,
-                #                    tfed_ps_offset.pose.position.y,
-                #                    tfed_ps_offset.pose.position.z),
-                #      (tfed_ps_offset.pose.orientation.x,
-                #       tfed_ps_offset.pose.orientation.y,
-                #       tfed_ps_offset.pose.orientation.z,
-                #       tfed_ps_offset.pose.orientation.w),
-                #      rospy.Time.now(),
-                #      self.frame_to_posestamped + '_offset',
-                #      self.reference_frame)
+                #Publish offset_tf
+                self.br.sendTransform((tfed_ps_offset.pose.position.x,
+                                   tfed_ps_offset.pose.position.y,
+                                   tfed_ps_offset.pose.position.z),
+                     (tfed_ps_offset.pose.orientation.x,
+                      tfed_ps_offset.pose.orientation.y,
+                      tfed_ps_offset.pose.orientation.z,
+                      tfed_ps_offset.pose.orientation.w),
+                     rospy.Time.now(),
+                     self.frame_to_posestamped + '_offset',
+                     self.reference_frame)
                 if self.verbose:
                     print('Offset pose: ', tfed_ps_offset)
             self.rate.sleep()
