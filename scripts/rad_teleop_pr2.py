@@ -9,7 +9,7 @@ import actionlib
 # TF stuff
 import tf
 from tf import TransformListener
-from geometry_msgs.msg import PoseStamped, Pose
+from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 # from tf.transformations import euler_from_quaternion
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from sensor_msgs.msg import Joy
@@ -305,13 +305,11 @@ class PR2Teleop(object):
             if (self.tf_listener.frameExists("last_notmoved_controller_right_pose") and 
                 self.tf_listener.frameExists("last_notmoved_robot_right_pose")):
 
-                p1 = PoseStamped(Header(frame_id="/right_controller_offset"))
-                p1.pose.orientation.w = 1.0    # Neutral orientation
+                p1 = make_pose_msg("/right_controller_offset", [0.0, 0.0, 0.0], [0.0,0.0,0.0,1.0])
                 p_in_base = self.tf_listener.transformPose("last_notmoved_controller_right_pose", p1)
+                pos_base, quat_base = pose_to_tuples(p_in_base.pose)
 
-                p1_robot = PoseStamped(Header(frame_id="last_notmoved_robot_right_pose"))
-                p1_robot.pose.position = p_in_base.pose.position
-                p1_robot.pose.orientation = p_in_base.pose.orientation
+                p1_robot = make_pose_msg("last_notmoved_robot_right_pose", pos_base, quat_base)
                 p_in_robot = self.tf_listener.transformPose('torso_lift_link', p1_robot)
                 
                 ps = p_in_robot
@@ -320,7 +318,7 @@ class PR2Teleop(object):
                 self.br.sendTransform(pos_robot, quat_robot, rospy.Time.now(), 'target_r_wrist', 'torso_lift_link')
 
             else:
-                rospy.warn('Transform `last_notmoved_robot_right_pose` or `last_notmoved_controller_right_pose` does not exist.')
+                print('Transform `last_notmoved_robot_right_pose` or `last_notmoved_controller_right_pose` does not exist.')
 
         (x,y, z), (rx, ry, rz, rw) = pose_to_tuples(ps.pose)
         if not self.relative_control:
@@ -432,6 +430,13 @@ def pose_to_tuples(pose):
     position = (pose.position.x, pose.position.y, pose.position.z)
     orientation = (pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
     return position, orientation
+
+def make_pose_msg(frame_id, pos, quat):
+    h = Header(frame_id=frame_id)
+    p = Point(*pos)
+    q = Quaternion(*quat)
+
+    return PoseStamped(header = Header(frame_id=frame_id), pose=Pose(p,q))
 
 
 if __name__ == '__main__':
