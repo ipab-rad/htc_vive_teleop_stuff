@@ -9,11 +9,11 @@ import actionlib
 # TF stuff
 import tf
 from tf import TransformListener
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Pose
 # from tf.transformations import euler_from_quaternion
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from sensor_msgs.msg import Joy
-from std_msgs.msg import Float64, Empty
+from std_msgs.msg import Float64, Empty, Header
 
 import trac_ik_python
 from trac_ik_python.trac_ik import IK
@@ -304,48 +304,27 @@ class PR2Teleop(object):
         if self.relative_control:
             if (self.tf_listener.frameExists("last_notmoved_controller_right_pose") and 
                 self.tf_listener.frameExists("last_notmoved_robot_right_pose")):
-                # The transform is thejtp.accelerations = [0.0] * len(positions)re! Let's calculate offset
-                p1 = PoseStamped()
-                p1.header.frame_id = "/right_controller_offset"
-                p1.header.stamp = rospy.Time(0) #self.tf_listener.getLatestCommonTime("/right_controller_offset", "/last_notmoved_controller_right_pose")
+
+                p1 = PoseStamped(Header(frame_id="/right_controller_offset"))
                 p1.pose.orientation.w = 1.0    # Neutral orientation
                 p_in_base = self.tf_listener.transformPose("last_notmoved_controller_right_pose", p1)
 
-                p1_robot = PoseStamped()
-                p1_robot.header.frame_id = 'last_notmoved_robot_right_pose'
-                p1_robot.header.stamp = rospy.Time(0) #self.tf_listener.getLatestCommonTime("/last_notmoved_robot_right_pose", "/torso_lift_link")
+                p1_robot = PoseStamped(Header(frame_id="last_notmoved_robot_right_pose"))
                 p1_robot.pose.position = p_in_base.pose.position
                 p1_robot.pose.orientation = p_in_base.pose.orientation
                 p_in_robot = self.tf_listener.transformPose('torso_lift_link', p1_robot)
                 
                 ps = p_in_robot
+                pos_robot, quat_robot = pose_to_tuples(p_in_robot.pose)
 
-                self.br.sendTransform((ps.pose.position.x,
-                                   ps.pose.position.y,
-                                   ps.pose.position.z),
-                     (ps.pose.orientation.x,
-                      ps.pose.orientation.y,
-                      ps.pose.orientation.z,
-                      ps.pose.orientation.w),
-                     rospy.Time.now(),
-                     'target_r_wrist',
-                     'torso_lift_link'
-                     )
+                self.br.sendTransform(pos_robot, quat_robot, rospy.Time.now(), 'target_r_wrist', 'torso_lift_link')
 
             else:
                 rospy.warn('Transform `last_notmoved_robot_right_pose` or `last_notmoved_controller_right_pose` does not exist.')
 
-        # return
-        x = ps.pose.position.x
-        y = ps.pose.position.y
-        z = ps.pose.position.z
+        (x,y, z), (rx, ry, rz, rw) = pose_to_tuples(ps.pose)
         if not self.relative_control:
             z -= 0.5
-
-        rx = ps.pose.orientation.x
-        ry = ps.pose.orientation.y
-        rz = ps.pose.orientation.z
-        rw = ps.pose.orientation.w
 
         # rospy.loginfo("Got pose: " + str(ps))
         sol = None
@@ -358,13 +337,13 @@ class PR2Teleop(object):
                                        self.brx, self.bry, self.brz)
             retries += 1
         if sol:
-            print "Solution found: (" + str(retries) + " retries)"
-            print sol
+            print("Solution found: (" + str(retries) + " retries)")
+            print(sol)
 
             self.send_right_arm_goal(sol)
             self.qinit_right = sol
         else:
-            print "NO SOLUTION FOUND for RIGHT :("
+            print("NO SOLUTION FOUND for RIGHT :(")
 
     def left_hand_run_ik_step(self):
         ps = self.controller_last_left_pose
